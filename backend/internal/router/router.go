@@ -17,7 +17,7 @@ func New(db *pgxpool.Pool) http.Handler {
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 	r.Use(cors.Handler(cors.Options{
-		AllowedOrigins:   []string{"http://localhost:3000", "https://*.vercel.app"},
+		AllowedOrigins:   []string{"*"},
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"Accept", "Content-Type"},
 		AllowCredentials: false,
@@ -43,6 +43,8 @@ func New(db *pgxpool.Pool) http.Handler {
 			r.Post("/peserta", h.CreatePeserta)
 			r.Put("/peserta/{pid}", h.UpdatePeserta)
 			r.Delete("/peserta/{pid}", h.DeletePeserta)
+			r.Post("/peserta/{pid}/paspor", h.UploadPaspor)
+			r.Post("/peserta/{pid}/ktp", h.UploadKtp)
 
 			// Payments
 			r.Get("/payments", h.ListPayments)
@@ -59,6 +61,14 @@ func New(db *pgxpool.Pool) http.Handler {
 			r.Get("/laba", h.GetLaba)
 		})
 	})
+
+	// RAB Master
+	r.Get("/api/rab", h.ListRab)
+	r.Post("/api/rab", h.UpsertRab)
+	r.Delete("/api/rab/{id}", h.DeleteRab)
+
+	// OCR
+	r.Post("/api/ocr/paspor", h.OcrPaspor)
 
 	// Reminders
 	r.Get("/api/reminders/upcoming", h.UpcomingReminders)

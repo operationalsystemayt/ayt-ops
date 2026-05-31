@@ -5,40 +5,33 @@
 export type AppEnv = "local" | "sit" | "production";
 export type StorageBackend = "local" | "supabase";
 
-function required(key: string): string {
-  const val = process.env[key];
-  if (!val) throw new Error(`Missing required env var: ${key}`);
-  return val;
-}
-
-function optional(key: string, fallback = ""): string {
-  return process.env[key] ?? fallback;
-}
+// Static references — Next.js inlines NEXT_PUBLIC_* at build time for client bundles.
+// Dynamic process.env[key] is NOT inlined and causes server/client hydration mismatches.
 
 export const appConfig = {
-  env: (optional("NEXT_PUBLIC_APP_ENV", "local")) as AppEnv,
-  appName: optional("NEXT_PUBLIC_APP_NAME", "AYT Ops"),
-  version: optional("NEXT_PUBLIC_APP_VERSION", "0.1.0"),
+  env: (process.env.NEXT_PUBLIC_APP_ENV ?? "local") as AppEnv,
+  appName: process.env.NEXT_PUBLIC_APP_NAME ?? "AYT Ops",
+  version: process.env.NEXT_PUBLIC_APP_VERSION ?? "0.1.0",
 
-  isLocal: optional("NEXT_PUBLIC_APP_ENV", "local") === "local",
-  isSit: optional("NEXT_PUBLIC_APP_ENV", "local") === "sit",
-  isProduction: optional("NEXT_PUBLIC_APP_ENV", "local") === "production",
+  isLocal: (process.env.NEXT_PUBLIC_APP_ENV ?? "local") === "local",
+  isSit: process.env.NEXT_PUBLIC_APP_ENV === "sit",
+  isProduction: process.env.NEXT_PUBLIC_APP_ENV === "production",
 
-  storageBackend: (optional("NEXT_PUBLIC_STORAGE_BACKEND", "local")) as StorageBackend,
+  storageBackend: (process.env.NEXT_PUBLIC_STORAGE_BACKEND ?? "local") as StorageBackend,
 
   supabase: {
-    url: optional("NEXT_PUBLIC_SUPABASE_URL"),
-    anonKey: optional("NEXT_PUBLIC_SUPABASE_ANON_KEY"),
+    url: process.env.NEXT_PUBLIC_SUPABASE_URL ?? "",
+    anonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "",
   },
 } as const;
 
 // Server-only config (never sent to browser)
 export const serverConfig = {
-  supabaseServiceRoleKey: optional("SUPABASE_SERVICE_ROLE_KEY"),
+  supabaseServiceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY ?? "",
   googleDrive: {
-    clientEmail: optional("GOOGLE_DRIVE_CLIENT_EMAIL"),
-    privateKey: optional("GOOGLE_DRIVE_PRIVATE_KEY", "").replace(/\\n/g, "\n"),
-    rootFolderId: optional("GOOGLE_DRIVE_ROOT_FOLDER_ID"),
+    clientEmail: process.env.GOOGLE_DRIVE_CLIENT_EMAIL ?? "",
+    privateKey: (process.env.GOOGLE_DRIVE_PRIVATE_KEY ?? "").replace(/\\n/g, "\n"),
+    rootFolderId: process.env.GOOGLE_DRIVE_ROOT_FOLDER_ID ?? "",
   },
-  anthropicApiKey: optional("ANTHROPIC_API_KEY"),
+  anthropicApiKey: process.env.ANTHROPIC_API_KEY ?? "",
 } as const;

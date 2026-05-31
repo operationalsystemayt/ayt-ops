@@ -25,3 +25,11 @@ func jsonErr(w http.ResponseWriter, code int, msg string) {
 func decode(r *http.Request, v any) error {
 	return json.NewDecoder(r.Body).Decode(v)
 }
+
+// nilIfEmpty converts a pointer to empty string into nil so enum SQL casts don't fail.
+func nilIfEmpty(s *string) *string {
+	if s != nil && *s == "" {
+		return nil
+	}
+	return s
+}

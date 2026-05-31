@@ -1,13 +1,18 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { tripApi } from "@/lib/trip/api";
-import { TextInput, NumericInput, Button, FormField, SectionHeader } from "@/components/ui";
+import { rabDbApi } from "@/lib/rab/dbApi";
+import { rabStorage } from "@/lib/rab/storage";
+import { NumericInput, Button, FormField, SectionHeader } from "@/components/ui";
+import type { RabMasterSummary } from "@/lib/rab/dbApi";
 
 export default function NewTripPage() {
   const router = useRouter();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [rabList, setRabList] = useState<RabMasterSummary[]>([]);
+  const [rabLoading, setRabLoading] = useState(true);
 
   const [form, setForm] = useState({
     nama_trip: "",
@@ -23,6 +28,40 @@ export default function NewTripPage() {
     : "";
 
   const set = (k: keyof typeof form) => (v: any) => setForm((f) => ({ ...f, [k]: v }));
+
+  // Load RAB list from Go backend; auto-sync from localStorage if DB is empty
+  useEffect(() => {
+    (async () => {
+      try {
+        let list = await rabDbApi.list();
+        if (list.length === 0) {
+          const localRabs = await rabStorage.list();
+          if (localRabs.length > 0) {
+            await Promise.all(localRabs.map((r) => rabDbApi.upsert(r).catch(() => {})));
+            list = await rabDbApi.list();
+          }
+        }
+        setRabList(list);
+      } catch {
+        setRabList([]);
+      } finally {
+        setRabLoading(false);
+      }
+    })();
+  }, []);
+
+  const handleRabSelect = (id: string) => {
+    set("rab_master_id")(id);
+    if (!id) return;
+    const rab = rabList.find((r) => r.id === id);
+    if (!rab) return;
+    setForm((f) => ({
+      ...f,
+      rab_master_id: id,
+      jumlah_hari: rab.jumlah_hari || f.jumlah_hari,
+      total_pax: rab.jumlah_pax || f.total_pax,
+    }));
+  };
 
   const handleSubmit = async () => {
     if (!form.nama_trip.trim() || !form.tgl_berangkat) {
@@ -46,6 +85,8 @@ export default function NewTripPage() {
     }
   };
 
+  const selectedRab = rabList.find((r) => r.id === form.rab_master_id);
+
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-100">
       <div className="max-w-lg mx-auto px-4 py-8">
@@ -58,11 +99,40 @@ export default function NewTripPage() {
 
           <div className="flex flex-col gap-4">
             <FormField label="Nama Open Trip">
-              <TextInput value={form.nama_trip} onChange={set("nama_trip")} placeholder="cth: JPN Winter Golden Route 6D5N" />
+              <input
+                type="text"
+                value={form.nama_trip}
+                onChange={(e) => set("nama_trip")(e.target.value)}
+                placeholder="cth: JPN Winter Golden Route 6D5N"
+                className="w-full rounded-lg bg-neutral-900 border border-neutral-700 px-3 py-2 text-sm text-neutral-100 placeholder-neutral-600 focus:outline-none focus:border-teal-500 transition-colors"
+              />
             </FormField>
 
-            <FormField label="RAB Master ID (opsional)">
-              <TextInput value={form.rab_master_id} onChange={set("rab_master_id")} placeholder="ID RAB master" />
+            <FormField label="RAB Master">
+              <select
+                value={form.rab_master_id}
+                onChange={(e) => handleRabSelect(e.target.value)}
+                disabled={rabLoading}
+                className="w-full rounded-lg bg-neutral-900 border border-neutral-700 px-3 py-2 text-sm text-neutral-100 focus:outline-none focus:border-teal-500 transition-colors cursor-pointer disabled:opacity-50"
+              >
+                <option value="">{rabLoading ? "Memuat..." : "— Pilih RAB Master (opsional) —"}</option>
+                {rabList.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.nama} · {r.jumlah_pax} pax · {r.jumlah_hari} hari
+                  </option>
+                ))}
+              </select>
+              {rabList.length === 0 && !rabLoading && (
+                <p className="text-[10px] text-neutral-600 mt-1">
+                  Belum ada RAB. Simpan RAB di halaman{" "}
+                  <a href="/rab" className="text-teal-500 hover:underline">RAB Master</a> terlebih dahulu.
+                </p>
+              )}
+              {selectedRab && (
+                <p className="text-[10px] text-neutral-500 mt-1">
+                  Kurs {selectedRab.kurs} · Harga jual {selectedRab.harga_jual > 0 ? `Rp ${selectedRab.harga_jual.toLocaleString("id-ID")}` : "—"}
+                </p>
+              )}
             </FormField>
 
             <div className="grid grid-cols-2 gap-4">

@@ -8,7 +8,7 @@ import { clsx } from "clsx";
 
 const NAV = [
   { href: "/rab", label: "RAB Master" },
-  { href: "/trip", label: "Open Trip", disabled: true },
+  { href: "/trip", label: "Open Trip" },
 ];
 
 export function Topbar() {
@@ -30,17 +30,15 @@ export function Topbar() {
           {NAV.map((item) => (
             <Link
               key={item.href}
-              href={item.disabled ? "#" : item.href}
+              href={item.href}
               className={clsx(
                 "px-3 py-1.5 rounded-lg text-sm transition-colors",
-                item.disabled && "pointer-events-none opacity-30",
-                path.startsWith(item.href) && !item.disabled
+                path.startsWith(item.href)
                   ? "bg-neutral-800 text-neutral-100 font-medium"
                   : "text-neutral-500 hover:text-neutral-300"
               )}
             >
               {item.label}
-              {item.disabled && <span className="ml-1.5 text-[9px] text-neutral-600">soon</span>}
             </Link>
           ))}
         </nav>

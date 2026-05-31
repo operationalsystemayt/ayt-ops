@@ -59,6 +59,9 @@ func (h *Handler) CreatePeserta(w http.ResponseWriter, r *http.Request) {
 	if body.NamaLengkap == "" {
 		jsonErr(w, 400, "nama_lengkap required"); return
 	}
+	body.Title    = nilIfEmpty(body.Title)
+	body.RoomType = nilIfEmpty(body.RoomType)
+	body.Meals    = nilIfEmpty(body.Meals)
 
 	var p models.ManifestPeserta
 	err := h.DB.QueryRow(r.Context(), `
@@ -108,6 +111,10 @@ func (h *Handler) UpdatePeserta(w http.ResponseWriter, r *http.Request) {
 	if err := decode(r, &body); err != nil {
 		jsonErr(w, 400, "invalid body"); return
 	}
+	body.Title      = nilIfEmpty(body.Title)
+	body.RoomType   = nilIfEmpty(body.RoomType)
+	body.Meals      = nilIfEmpty(body.Meals)
+	body.VisaStatus = nilIfEmpty(body.VisaStatus)
 
 	_, err := h.DB.Exec(r.Context(), `
 		UPDATE manifest_peserta SET

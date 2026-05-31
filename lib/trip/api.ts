@@ -6,15 +6,43 @@ import type {
 const BASE = process.env.NEXT_PUBLIC_TRIP_API_URL ?? "http://localhost:8080";
 
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
-    headers: { "Content-Type": "application/json" },
-    ...init,
-  });
+  const url = `${BASE}${path}`;
+  console.debug(`[API] ${init?.method ?? "GET"} ${url}`);
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      headers: { "Content-Type": "application/json" },
+      ...init,
+    });
+  } catch (e: any) {
+    console.error(`[API] network error — ${init?.method ?? "GET"} ${url}:`, e.message);
+    throw new Error(`Network error: cannot reach ${BASE} — is the Go backend running?`);
+  }
   if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error((err as any).error ?? `HTTP ${res.status}`);
+    const body = await res.json().catch(() => ({}));
+    const msg = (body as any).error ?? `HTTP ${res.status}`;
+    console.error(`[API] ${res.status} ${init?.method ?? "GET"} ${url} →`, msg);
+    throw new Error(msg);
   }
   if (res.status === 204) return undefined as T;
+  return res.json();
+}
+
+async function reqForm<T>(url: string, fd: FormData): Promise<T> {
+  console.debug(`[API] POST (form) ${url}`);
+  let res: Response;
+  try {
+    res = await fetch(url, { method: "POST", body: fd });
+  } catch (e: any) {
+    console.error(`[API] network error — POST ${url}:`, e.message);
+    throw new Error(`Network error: cannot reach ${BASE} — is the Go backend running?`);
+  }
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    const msg = (body as any).error ?? `HTTP ${res.status}`;
+    console.error(`[API] ${res.status} POST ${url} →`, msg);
+    throw new Error(msg);
+  }
   return res.json();
 }
 
@@ -44,6 +72,34 @@ export const pesertaApi = {
     }),
   delete: (tripId: string, pid: string) =>
     req<void>(`/api/trips/${tripId}/peserta/${pid}`, { method: "DELETE" }),
+
+  uploadFile: (tripId: string, pid: string, type: "paspor" | "ktp", file: File) => {
+    const fd = new FormData();
+    fd.append("file", file);
+    return reqForm<{ drive_file_id: string; drive_view_url: string }>(
+      `${BASE}/api/trips/${tripId}/peserta/${pid}/${type}`, fd,
+    );
+  },
+};
+
+// ── OCR ────────────────────────────────────────────────────────────────────────
+export interface OcrResult {
+  title: string;
+  nama_lengkap: string;
+  no_paspor: string;
+  place_of_birth: string;
+  tgl_lahir: string;
+  place_of_issued: string;
+  issued_date: string;
+  expiry_date: string;
+}
+
+export const ocrApi = {
+  paspor: (file: File) => {
+    const fd = new FormData();
+    fd.append("file", file);
+    return reqForm<OcrResult>(`${BASE}/api/ocr/paspor`, fd);
+  },
 };
 
 // ── Notes ──────────────────────────────────────────────────────────────────────
