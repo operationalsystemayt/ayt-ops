@@ -61,6 +61,7 @@ export interface TripPayment {
   jenis: PaymentJenis;
   amount: number;
   tgl_bayar: string;
+  bukti_drive_file_id?: string;
   catatan?: string;
   created_by?: string;
   created_at: string;
@@ -176,6 +177,78 @@ export interface HotelOCRResult {
   tipe_room: string;
   harga_jpy: number;
   kurs: number;
+}
+
+export type TransportJenis = "SHINKANSEN" | "LOKAL";
+
+export interface ManifestTransportasi {
+  id?: string;
+  trip_id?: string;
+  jenis: TransportJenis;
+  vendor?: string;
+  tgl_trip?: string;
+  tipe_kendaraan?: string;
+  keterangan_rute?: string;
+  qty?: number;
+  kategori_usia?: string;
+  harga_jpy?: number;
+  harga_idr?: number;
+  total_idr?: number;
+  kurs?: number;
+  harga_satuan?: string;
+  nota_drive_file_id?: string;
+  waktu_pembayaran?: string;
+  payment_schedule_id?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TransportasiOCRShinkansenRow {
+  kategori_usia: string;
+  aturan_harga: string;
+  qty: number;
+  harga_jpy: number;
+  kurs: number;
+}
+
+export interface TransportasiOCRLokalRow {
+  vendor: string;
+  tgl_trip: string;
+  tipe_kendaraan: string;
+  keterangan: string;
+  harga_jpy: number;
+  harga_satuan: string;
+  kurs: number;
+}
+
+export interface TransportasiOCRResult {
+  shinkansen: TransportasiOCRShinkansenRow[];
+  lokal: TransportasiOCRLokalRow[];
+}
+
+export interface ManifestOptionalTour {
+  id?: string;
+  trip_id?: string;
+  nama_tour: string;
+  kategori?: string;
+  tier?: string;
+  harga_jual_idr?: number;
+  harga_beli_jpy?: number;
+  harga_beli_idr?: number;
+  kurs?: number;
+  peserta_ids: string[];
+  peserta_names: string[];
+  tiket_drive_file_id?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface OptionalTourOCRResult {
+  nama_tour: string;
+  tier: string;
+  harga_beli_jpy: number;
+  admission_date: string;
+  qty: number;
 }
 
 export interface LabaResult {

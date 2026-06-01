@@ -22,7 +22,7 @@ export const NumericInput = forwardRef<HTMLInputElement, NumericInputProps>(
       className={clsx(
         "w-full rounded-lg bg-neutral-900 border border-neutral-700 px-3 py-2",
         "text-sm text-neutral-100 font-mono placeholder-neutral-600",
-        "focus:outline-none focus:border-teal-500 transition-colors",
+        "focus:outline-none focus:border-[#37bea3] transition-colors",
         className
       )}
       {...rest}
@@ -47,7 +47,7 @@ export const TextInput = forwardRef<HTMLInputElement, TextInputProps>(
       className={clsx(
         "w-full rounded-lg bg-neutral-900 border border-neutral-700 px-3 py-2",
         "text-sm text-neutral-100 placeholder-neutral-600",
-        "focus:outline-none focus:border-teal-500 transition-colors",
+        "focus:outline-none focus:border-[#37bea3] transition-colors",
         className
       )}
       {...rest}
@@ -70,7 +70,7 @@ export function Select({ value, onChange, options, className, ...rest }: SelectP
       onChange={(e) => onChange(e.target.value)}
       className={clsx(
         "w-full rounded-lg bg-neutral-900 border border-neutral-700 px-2 py-2",
-        "text-xs text-neutral-400 focus:outline-none focus:border-teal-500 transition-colors cursor-pointer",
+        "text-xs text-neutral-400 focus:outline-none focus:border-[#37bea3] transition-colors cursor-pointer",
         className
       )}
       {...rest}
@@ -93,11 +93,11 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const variantClasses: Record<ButtonVariant, string> = {
-  primary: "bg-teal-500 hover:bg-teal-400 text-neutral-950 font-semibold",
-  outline: "border border-neutral-600 hover:border-teal-500 hover:text-teal-400 text-neutral-300 bg-transparent",
+  primary: "text-white font-semibold",
+  outline: "border border-neutral-600 hover:border-[#37bea3] hover:text-[#37bea3] text-neutral-300 bg-transparent",
   ghost:   "text-neutral-400 hover:text-neutral-100 bg-transparent",
   danger:  "bg-red-500/15 hover:bg-red-500/25 text-red-400 border border-red-500/30",
-  success: "bg-teal-500/15 hover:bg-teal-500/25 text-teal-400 border border-teal-500/30",
+  success: "bg-[#37bea3]/15 hover:bg-[#37bea3]/25 text-[#37bea3] border border-[#37bea3]/30",
 };
 const sizeClasses: Record<ButtonSize, string> = {
   sm: "px-3 py-1.5 text-xs",
@@ -105,7 +105,11 @@ const sizeClasses: Record<ButtonSize, string> = {
   lg: "px-5 py-2.5 text-base",
 };
 
-export function Button({ variant = "primary", size = "md", loading, children, className, disabled, ...rest }: ButtonProps) {
+export function Button({ variant = "primary", size = "md", loading, children, className, disabled, style, ...rest }: ButtonProps & { style?: React.CSSProperties }) {
+  const primaryStyle: React.CSSProperties = variant === "primary"
+    ? { backgroundColor: "var(--ayt-teal)", ...(style ?? {}) }
+    : (style ?? {});
+
   return (
     <button
       disabled={disabled || loading}
@@ -116,6 +120,7 @@ export function Button({ variant = "primary", size = "md", loading, children, cl
         sizeClasses[size],
         className
       )}
+      style={primaryStyle}
       {...rest}
     >
       {loading ? "..." : children}

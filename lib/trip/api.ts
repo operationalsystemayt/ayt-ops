@@ -3,6 +3,8 @@ import type {
   Trip, ManifestPeserta, TripNote, TripPayment, PaymentSchedule, LabaResult,
   ManifestKeberangkatan, TicketOCRResult,
   ManifestHotel, HotelOCRResult,
+  ManifestTransportasi, TransportasiOCRResult,
+  ManifestOptionalTour, OptionalTourOCRResult,
 } from "@/types/trip";
 
 const BASE = process.env.NEXT_PUBLIC_TRIP_API_URL ?? "http://localhost:8080";
@@ -202,6 +204,92 @@ export const hotelApi = {
     ),
 };
 
+// ── Transportasi ──────────────────────────────────────────────────────────────
+export const transportasiApi = {
+  list: (tripId: string) =>
+    req<ManifestTransportasi[]>(`/api/trips/${tripId}/transportasi`),
+  create: (tripId: string, body: Partial<ManifestTransportasi>) =>
+    req<ManifestTransportasi>(`/api/trips/${tripId}/transportasi`, {
+      method: "POST", body: JSON.stringify(body),
+    }),
+  update: (tripId: string, tid: string, body: Partial<ManifestTransportasi>) =>
+    req<void>(`/api/trips/${tripId}/transportasi/${tid}`, {
+      method: "PUT", body: JSON.stringify(body),
+    }),
+  delete: (tripId: string, tid: string) =>
+    req<void>(`/api/trips/${tripId}/transportasi/${tid}`, { method: "DELETE" }),
+  uploadNota: (tripId: string, fd: FormData) =>
+    reqForm<{ drive_file_id: string; drive_view_url: string }>(
+      `${BASE}/api/trips/${tripId}/transportasi/upload-nota`, fd,
+    ),
+  ocrNota: (tripId: string, fd: FormData) =>
+    reqForm<TransportasiOCRResult>(
+      `${BASE}/api/trips/${tripId}/transportasi/ocr-nota`, fd,
+    ),
+  exportCsv: async (tripId: string): Promise<void> => {
+    const url = `${BASE}/api/trips/${tripId}/transportasi/export-csv`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const blob = await res.blob();
+    const disposition = res.headers.get("Content-Disposition") ?? "";
+    const match = disposition.match(/filename="([^"]+)"/);
+    const filename = match ? match[1] : `manifest_transportasi.csv`;
+    const objUrl = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = objUrl;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(objUrl);
+  },
+  uploadCsvToDrive: (tripId: string) =>
+    req<{ file_name: string; drive_view_url: string }>(
+      `/api/trips/${tripId}/transportasi/upload-csv`, { method: "POST" },
+    ),
+};
+
+// ── Optional Tour ─────────────────────────────────────────────────────────────
+export const optionalTourApi = {
+  list: (tripId: string) =>
+    req<ManifestOptionalTour[]>(`/api/trips/${tripId}/optional-tour`),
+  create: (tripId: string, body: Partial<ManifestOptionalTour>) =>
+    req<ManifestOptionalTour>(`/api/trips/${tripId}/optional-tour`, {
+      method: "POST", body: JSON.stringify(body),
+    }),
+  update: (tripId: string, oid: string, body: Partial<ManifestOptionalTour>) =>
+    req<void>(`/api/trips/${tripId}/optional-tour/${oid}`, {
+      method: "PUT", body: JSON.stringify(body),
+    }),
+  delete: (tripId: string, oid: string) =>
+    req<void>(`/api/trips/${tripId}/optional-tour/${oid}`, { method: "DELETE" }),
+  uploadTiket: (tripId: string, fd: FormData) =>
+    reqForm<{ drive_file_id: string; drive_view_url: string }>(
+      `${BASE}/api/trips/${tripId}/optional-tour/upload-tiket`, fd,
+    ),
+  ocrTiket: (tripId: string, fd: FormData) =>
+    reqForm<OptionalTourOCRResult>(
+      `${BASE}/api/trips/${tripId}/optional-tour/ocr-tiket`, fd,
+    ),
+  exportCsv: async (tripId: string): Promise<void> => {
+    const url = `${BASE}/api/trips/${tripId}/optional-tour/export-csv`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const blob = await res.blob();
+    const disposition = res.headers.get("Content-Disposition") ?? "";
+    const match = disposition.match(/filename="([^"]+)"/);
+    const filename = match ? match[1] : `manifest_optional_tour.csv`;
+    const objUrl = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = objUrl;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(objUrl);
+  },
+  uploadCsvToDrive: (tripId: string) =>
+    req<{ file_name: string; drive_view_url: string }>(
+      `/api/trips/${tripId}/optional-tour/upload-csv`, { method: "POST" },
+    ),
+};
+
 // ── Notes ──────────────────────────────────────────────────────────────────────
 export const notesApi = {
   list: (tripId: string) => req<TripNote[]>(`/api/trips/${tripId}/notes`),
@@ -217,15 +305,64 @@ export const notesApi = {
     req<void>(`/api/trips/${tripId}/notes/${nid}`, { method: "DELETE" }),
 };
 
+// ── Visa ───────────────────────────────────────────────────────────────────────
+export const visaApi = {
+  upload: (tripId: string, pid: string, file: File) => {
+    const fd = new FormData();
+    fd.append("file", file);
+    return reqForm<{ drive_file_id: string; drive_view_url: string }>(
+      `${BASE}/api/trips/${tripId}/peserta/${pid}/visa`, fd,
+    );
+  },
+  delete: (tripId: string, pid: string) =>
+    req<void>(`/api/trips/${tripId}/peserta/${pid}/visa`, { method: "DELETE" }),
+  exportCsv: async (tripId: string): Promise<void> => {
+    const url = `${BASE}/api/trips/${tripId}/visa/export-csv`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const blob = await res.blob();
+    const disposition = res.headers.get("Content-Disposition") ?? "";
+    const match = disposition.match(/filename="([^"]+)"/);
+    const filename = match ? match[1] : `manifest_visa.csv`;
+    const objUrl = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = objUrl;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(objUrl);
+  },
+  uploadCsvToDrive: (tripId: string) =>
+    req<{ file_name: string; drive_view_url: string }>(
+      `/api/trips/${tripId}/visa/upload-csv`, { method: "POST" },
+    ),
+};
+
 // ── Payments ───────────────────────────────────────────────────────────────────
 export const paymentsApi = {
   list: (tripId: string) => req<TripPayment[]>(`/api/trips/${tripId}/payments`),
-  create: (tripId: string, body: Partial<TripPayment>) =>
-    req<TripPayment>(`/api/trips/${tripId}/payments`, {
-      method: "POST", body: JSON.stringify(body),
-    }),
+  create: (tripId: string, formData: FormData) =>
+    reqForm<TripPayment>(`${BASE}/api/trips/${tripId}/payments`, formData),
   delete: (tripId: string, payId: string) =>
     req<void>(`/api/trips/${tripId}/payments/${payId}`, { method: "DELETE" }),
+  exportCsv: async (tripId: string): Promise<void> => {
+    const url = `${BASE}/api/trips/${tripId}/payments/export-csv`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const blob = await res.blob();
+    const disposition = res.headers.get("Content-Disposition") ?? "";
+    const match = disposition.match(/filename="([^"]+)"/);
+    const filename = match ? match[1] : `manifest_payment.csv`;
+    const objUrl = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = objUrl;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(objUrl);
+  },
+  uploadCsvToDrive: (tripId: string) =>
+    req<{ file_name: string; drive_view_url: string }>(
+      `/api/trips/${tripId}/payments/upload-csv`, { method: "POST" },
+    ),
 };
 
 // ── Misc ───────────────────────────────────────────────────────────────────────

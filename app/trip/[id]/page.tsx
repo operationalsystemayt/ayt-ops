@@ -6,9 +6,11 @@ import { Badge, Spinner } from "@/components/ui";
 import { ManifestInti } from "@/components/trip/tabs/ManifestInti";
 import { ManifestKeberangkatan } from "@/components/trip/tabs/ManifestKeberangkatan";
 import { ManifestHotel } from "@/components/trip/tabs/ManifestHotel";
+import { ManifestTransportasi } from "@/components/trip/tabs/ManifestTransportasi";
+import { ManifestOptionalTour } from "@/components/trip/tabs/ManifestOptionalTour";
 import { TripNotes } from "@/components/trip/tabs/TripNotes";
 import { TripPayments } from "@/components/trip/tabs/TripPayments";
-import { TabScaffold } from "@/components/trip/tabs/TabScaffold";
+import { ManifestVisa } from "@/components/trip/tabs/ManifestVisa";
 import type { Trip, TripStatus } from "@/types/trip";
 import { clsx } from "clsx";
 
@@ -92,10 +94,10 @@ export default function TripDetailPage() {
             {activeTab === "2a" && <ManifestInti tripId={id} tripName={trip.nama_trip} tglBerangkat={trip.tgl_berangkat} tglPulang={trip.tgl_pulang} />}
             {activeTab === "2b" && <ManifestKeberangkatan tripId={id} tripName={trip.nama_trip} tglBerangkat={trip.tgl_berangkat} tglPulang={trip.tgl_pulang} />}
             {activeTab === "2c" && <ManifestHotel tripId={id} tripName={trip.nama_trip} tglBerangkat={trip.tgl_berangkat} tglPulang={trip.tgl_pulang} />}
-            {activeTab === "2d" && <TabScaffold label="Transportasi" />}
-            {activeTab === "2e" && <TabScaffold label="Optional Tour" />}
-            {activeTab === "2f" && <TabScaffold label="Visa" />}
-            {activeTab === "2g" && <TripPayments tripId={id} />}
+            {activeTab === "2d" && <ManifestTransportasi tripId={id} tripName={trip.nama_trip} tglBerangkat={trip.tgl_berangkat} tglPulang={trip.tgl_pulang} />}
+            {activeTab === "2e" && <ManifestOptionalTour tripId={id} tripName={trip.nama_trip} tglBerangkat={trip.tgl_berangkat} tglPulang={trip.tgl_pulang} />}
+            {activeTab === "2f" && <ManifestVisa tripId={id} tripName={trip.nama_trip} tglBerangkat={trip.tgl_berangkat} tglPulang={trip.tgl_pulang} />}
+            {activeTab === "2g" && <TripPayments tripId={id} tripName={trip.nama_trip} />}
             {activeTab === "2h" && <TripNotes tripId={id} />}
           </div>
         </div>

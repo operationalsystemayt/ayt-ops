@@ -173,6 +173,72 @@ type HotelOCRResult struct {
 	Kurs                float64  `json:"kurs"`
 }
 
+type ManifestTransportasi struct {
+	ID                *string   `json:"id"`
+	TripID            *string   `json:"trip_id"`
+	Jenis             string    `json:"jenis"` // SHINKANSEN or LOKAL
+	Vendor            *string   `json:"vendor"`
+	TglTrip           *string   `json:"tgl_trip"`
+	TipeKendaraan     *string   `json:"tipe_kendaraan"`
+	KeteranganRute    *string   `json:"keterangan_rute"`
+	Qty               *int      `json:"qty"`
+	KategoriUsia      *string   `json:"kategori_usia"`
+	HargaJpy          *float64  `json:"harga_jpy"`
+	HargaIdr          *float64  `json:"harga_idr"`
+	TotalIdr          *float64  `json:"total_idr"`
+	Kurs              *float64  `json:"kurs"`
+	HargaSatuan       *string   `json:"harga_satuan"`
+	NotaDriveFileId   *string   `json:"nota_drive_file_id"`
+	WaktuPembayaran   *string   `json:"waktu_pembayaran"` // from payment_schedules.deadline
+	PaymentScheduleId *string   `json:"payment_schedule_id"`
+	CreatedAt         time.Time `json:"created_at"`
+	UpdatedAt         time.Time `json:"updated_at"`
+}
+
+type TransportasiOCRResult struct {
+	Shinkansen []struct {
+		KategoriUsia string  `json:"kategori_usia"`
+		AturanHarga  string  `json:"aturan_harga"`
+		Qty          int     `json:"qty"`
+		HargaJpy     float64 `json:"harga_jpy"`
+		Kurs         float64 `json:"kurs"`
+	} `json:"shinkansen"`
+	Lokal []struct {
+		Vendor        string  `json:"vendor"`
+		TglTrip       string  `json:"tgl_trip"` // YYYY-MM-DD
+		TipeKendaraan string  `json:"tipe_kendaraan"`
+		Keterangan    string  `json:"keterangan"`
+		HargaJpy      float64 `json:"harga_jpy"`
+		HargaSatuan   string  `json:"harga_satuan"` // text like "18000 & 13000"
+		Kurs          float64 `json:"kurs"`
+	} `json:"lokal"`
+}
+
+type ManifestOptionalTour struct {
+	ID               *string   `json:"id"`
+	TripID           *string   `json:"trip_id"`
+	NamaTour         string    `json:"nama_tour"`
+	Kategori         *string   `json:"kategori"`
+	Tier             *string   `json:"tier"`
+	HargaJualIdr     *float64  `json:"harga_jual_idr"`
+	HargaBeliJpy     *float64  `json:"harga_beli_jpy"`
+	HargaBeliIdr     *float64  `json:"harga_beli_idr"`
+	Kurs             *float64  `json:"kurs"`
+	PesertaIds       []string  `json:"peserta_ids"`
+	PesertaNames     []string  `json:"peserta_names"`
+	TiketDriveFileId *string   `json:"tiket_drive_file_id"`
+	CreatedAt        time.Time `json:"created_at"`
+	UpdatedAt        time.Time `json:"updated_at"`
+}
+
+type OptionalTourOCRResult struct {
+	NamaTour      string  `json:"nama_tour"`
+	Tier          string  `json:"tier"`
+	HargaBeliJpy  float64 `json:"harga_beli_jpy"`
+	AdmissionDate string  `json:"admission_date"`
+	Qty           int     `json:"qty"`
+}
+
 type LabaResult struct {
 	TripID              string  `json:"trip_id"`
 	TotalPemasukan      float64 `json:"total_pemasukan"`

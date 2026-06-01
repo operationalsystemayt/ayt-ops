@@ -1,8 +1,12 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
 @import "tailwindcss";
 
 :root {
   color-scheme: dark;
+  /* AYT brand palette */
+  --ayt-blue:   #34599B;
+  --ayt-teal:   #37bea3;
+  --ayt-orange: #E8A025;
 }
 
 * {
@@ -10,7 +14,7 @@
 }
 
 body {
-  font-family: "DM Sans", "Inter", system-ui, sans-serif;
+  font-family: "Poppins", "Inter", system-ui, sans-serif;
 }
 
 /* Remove number input spinners */
@@ -24,5 +28,14 @@ input[type="number"] { -moz-appearance: textfield; }
 /* Smooth scrollbar */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #2a2f45; border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: #3a4060; }
+::-webkit-scrollbar-thumb { background: #34599B55; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #34599B99; }
+
+/* AYT teal accent overrides — applied where teal-500 is the primary action color */
+.ayt-btn-primary {
+  background-color: var(--ayt-teal);
+  color: #fff;
+}
+.ayt-btn-primary:hover {
+  background-color: #2ca98e;
+}

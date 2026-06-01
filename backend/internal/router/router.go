@@ -48,9 +48,17 @@ func New(db *pgxpool.Pool) http.Handler {
 			r.Post("/peserta/{pid}/paspor", h.UploadPaspor)
 			r.Post("/peserta/{pid}/ktp", h.UploadKtp)
 
+			// Visa
+			r.Post("/peserta/{pid}/visa", h.UploadVisa)
+			r.Delete("/peserta/{pid}/visa", h.DeleteVisa)
+			r.Get("/visa/export-csv", h.ExportVisaCSV)
+			r.Post("/visa/upload-csv", h.UploadVisaCSV)
+
 			// Payments
 			r.Get("/payments", h.ListPayments)
 			r.Post("/payments", h.CreatePayment)
+			r.Get("/payments/export-csv", h.ExportPaymentsCSV)   // static before {pay}
+			r.Post("/payments/upload-csv", h.UploadPaymentsCSV)  // static before {pay}
 			r.Delete("/payments/{pay}", h.DeletePayment)
 
 			// Notes
@@ -78,6 +86,26 @@ func New(db *pgxpool.Pool) http.Handler {
 			r.Post("/hotel/upload-csv", h.UploadHotelCSV)          // static before {hid}
 			r.Put("/hotel/{hid}", h.UpdateHotel)
 			r.Delete("/hotel/{hid}", h.DeleteHotel)
+
+			// Manifest transportasi
+			r.Get("/transportasi", h.ListTransportasi)
+			r.Post("/transportasi", h.CreateTransportasi)
+			r.Post("/transportasi/upload-nota", h.UploadNotaTransportasi)        // static before {tid}
+			r.Post("/transportasi/ocr-nota", h.OcrNotaTransportasi)              // static before {tid}
+			r.Get("/transportasi/export-csv", h.ExportTransportasiCSV)           // static before {tid}
+			r.Post("/transportasi/upload-csv", h.UploadTransportasiCSV)          // static before {tid}
+			r.Put("/transportasi/{tid}", h.UpdateTransportasi)
+			r.Delete("/transportasi/{tid}", h.DeleteTransportasi)
+
+			// Manifest optional tour
+			r.Get("/optional-tour", h.ListOptionalTour)
+			r.Post("/optional-tour", h.CreateOptionalTour)
+			r.Post("/optional-tour/upload-tiket", h.UploadTiketOptional)         // static before {oid}
+			r.Post("/optional-tour/ocr-tiket", h.OcrTiketOptional)               // static before {oid}
+			r.Get("/optional-tour/export-csv", h.ExportOptionalTourCSV)           // static before {oid}
+			r.Post("/optional-tour/upload-csv", h.UploadOptionalTourCSV)          // static before {oid}
+			r.Put("/optional-tour/{oid}", h.UpdateOptionalTour)
+			r.Delete("/optional-tour/{oid}", h.DeleteOptionalTour)
 
 			// Laba
 			r.Get("/laba", h.GetLaba)

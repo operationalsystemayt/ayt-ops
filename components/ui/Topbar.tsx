@@ -1,9 +1,10 @@
 // components/ui/Topbar.tsx
 "use client";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { appConfig } from "@/config/app";
 import { EnvBadge } from "./EnvBadge";
+import { appConfig } from "@/config/app";
 import { clsx } from "clsx";
 
 const NAV = [
@@ -14,16 +15,26 @@ const NAV = [
 export function Topbar() {
   const path = usePathname();
   return (
-    <header className="sticky top-0 z-50 bg-neutral-950/90 backdrop-blur border-b border-neutral-800">
-      <div className="max-w-screen-xl mx-auto px-6 h-14 flex items-center gap-6">
-        {/* Brand */}
-        <div className="flex items-center gap-2.5 mr-2">
-          <div className="w-2 h-2 rounded-full bg-teal-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]" />
-          <span className="font-semibold text-sm tracking-tight text-neutral-100">
-            {appConfig.appName}
-          </span>
-          <EnvBadge />
-        </div>
+    <header className="sticky top-0 z-50 bg-white shadow-sm border-b border-gray-200">
+      <div className="max-w-screen-xl mx-auto px-6 h-16 flex items-center gap-8">
+        {/* AYT Logo */}
+        <Link href="/" className="flex items-center gap-3 flex-shrink-0">
+          <Image
+            src="/ayt-logo.png"
+            alt="Angkasa Yudistira Travel"
+            width={80}
+            height={48}
+            className="object-contain"
+            priority
+          />
+          <div className="hidden sm:block">
+            <div className="text-[10px] font-semibold uppercase tracking-widest leading-none"
+              style={{ color: "var(--ayt-blue)" }}>
+              Ops
+            </div>
+            <EnvBadge />
+          </div>
+        </Link>
 
         {/* Nav */}
         <nav className="flex items-center gap-1">
@@ -32,19 +43,22 @@ export function Topbar() {
               key={item.href}
               href={item.href}
               className={clsx(
-                "px-3 py-1.5 rounded-lg text-sm transition-colors",
+                "px-4 py-2 rounded-lg text-sm font-medium transition-colors",
                 path.startsWith(item.href)
-                  ? "bg-neutral-800 text-neutral-100 font-medium"
-                  : "text-neutral-500 hover:text-neutral-300"
+                  ? "text-white"
+                  : "text-gray-500 hover:text-gray-800 hover:bg-gray-100"
               )}
+              style={path.startsWith(item.href)
+                ? { backgroundColor: "var(--ayt-blue)" }
+                : {}}
             >
               {item.label}
             </Link>
           ))}
         </nav>
 
-        {/* Version */}
-        <div className="ml-auto text-[10px] text-neutral-700 font-mono">
+        {/* Right */}
+        <div className="ml-auto text-[10px] text-gray-400 font-mono">
           v{appConfig.version}
         </div>
       </div>
