@@ -41,6 +41,8 @@ func New(db *pgxpool.Pool) http.Handler {
 			// Manifest peserta
 			r.Get("/peserta", h.ListPeserta)
 			r.Post("/peserta", h.CreatePeserta)
+			r.Post("/peserta/manifest-csv", h.ExportManifestToDrive)       // static before {pid}
+			r.Post("/passport-compilation", h.PassportCompilation)
 			r.Put("/peserta/{pid}", h.UpdatePeserta)
 			r.Delete("/peserta/{pid}", h.DeletePeserta)
 			r.Post("/peserta/{pid}/paspor", h.UploadPaspor)
@@ -56,6 +58,26 @@ func New(db *pgxpool.Pool) http.Handler {
 			r.Post("/notes", h.CreateNote)
 			r.Put("/notes/{nid}", h.UpdateNote)
 			r.Delete("/notes/{nid}", h.DeleteNote)
+
+			// Manifest keberangkatan
+			r.Get("/keberangkatan", h.ListKeberangkatan)
+			r.Post("/keberangkatan", h.CreateKeberangkatan)
+			r.Post("/keberangkatan/upload-tiket", h.UploadTiket)         // static before {kid}
+			r.Post("/keberangkatan/ocr-tiket", h.OcrTiket)               // static before {kid}
+			r.Get("/keberangkatan/export-csv", h.ExportKeberangkatanCSV) // static before {kid}
+			r.Post("/keberangkatan/upload-csv", h.UploadKeberangkatanCSV) // static before {kid}
+			r.Put("/keberangkatan/{kid}", h.UpdateKeberangkatan)
+			r.Delete("/keberangkatan/{kid}", h.DeleteKeberangkatan)
+
+			// Manifest hotel
+			r.Get("/hotel", h.ListHotel)
+			r.Post("/hotel", h.CreateHotel)
+			r.Post("/hotel/upload-nota", h.UploadNotaHotel)        // static before {hid}
+			r.Post("/hotel/ocr-nota", h.OcrNotaHotel)              // static before {hid}
+			r.Get("/hotel/export-csv", h.ExportHotelCSV)           // static before {hid}
+			r.Post("/hotel/upload-csv", h.UploadHotelCSV)          // static before {hid}
+			r.Put("/hotel/{hid}", h.UpdateHotel)
+			r.Delete("/hotel/{hid}", h.DeleteHotel)
 
 			// Laba
 			r.Get("/laba", h.GetLaba)

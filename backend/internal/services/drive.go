@@ -24,9 +24,35 @@ import (
 	"net/textproto"
 	"net/url"
 	"os"
+	"strings"
 	"sync"
 	"time"
 )
+
+// driveClient uses a longer TLS handshake timeout than the default (10s → 30s)
+// and keeps connections alive between calls.
+var driveClient = &http.Client{
+	Transport: &http.Transport{
+		TLSHandshakeTimeout:   30 * time.Second,
+		ResponseHeaderTimeout: 30 * time.Second,
+		IdleConnTimeout:       90 * time.Second,
+		MaxIdleConns:          10,
+		MaxIdleConnsPerHost:   5,
+	},
+	Timeout: 60 * time.Second,
+}
+
+func isRetryable(err error) bool {
+	if err == nil {
+		return false
+	}
+	s := err.Error()
+	return strings.Contains(s, "TLS handshake timeout") ||
+		strings.Contains(s, "connection reset by peer") ||
+		strings.Contains(s, "EOF") ||
+		strings.Contains(s, "i/o timeout") ||
+		strings.Contains(s, "connection refused")
+}
 
 var ErrDriveNotConfigured = errors.New(
 	"Google Drive not configured — run `go run ./cmd/setup-drive-auth` to set up OAuth2, " +
@@ -124,7 +150,7 @@ func (d *DriveService) token(ctx context.Context) (string, error) {
 }
 
 func (d *DriveService) oauthToken() (string, error) {
-	resp, err := http.PostForm("https://oauth2.googleapis.com/token", url.Values{
+	resp, err := driveClient.PostForm("https://oauth2.googleapis.com/token", url.Values{
 		"client_id":     {d.oauthClientID},
 		"client_secret": {d.oauthClientSecret},
 		"refresh_token": {d.oauthRefreshToken},
@@ -170,7 +196,7 @@ func (d *DriveService) serviceAccountToken() (string, error) {
 	}
 	jwt := signing + "." + base64.RawURLEncoding.EncodeToString(sig)
 
-	resp, err := http.PostForm("https://oauth2.googleapis.com/token", url.Values{
+	resp, err := driveClient.PostForm("https://oauth2.googleapis.com/token", url.Values{
 		"grant_type": {"urn:ietf:params:oauth:grant-type:jwt-bearer"},
 		"assertion":  {jwt},
 	})
@@ -209,41 +235,60 @@ func (d *DriveService) do(ctx context.Context, method, endpoint string, body io.
 	if ct != "" {
 		req.Header.Set("Content-Type", ct)
 	}
-	return http.DefaultClient.Do(req)
+	return driveClient.Do(req)
 }
 
 func (d *DriveService) doJSON(ctx context.Context, method, endpoint string, payload any, out any) error {
-	var body io.Reader
+	var bodyBytes []byte
 	if payload != nil {
-		b, _ := json.Marshal(payload)
-		body = bytes.NewReader(b)
+		bodyBytes, _ = json.Marshal(payload)
 	}
-	resp, err := d.do(ctx, method, endpoint, body, "application/json")
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
 
-	raw, _ := io.ReadAll(resp.Body)
-
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		var apiErr struct {
-			Error struct {
-				Code    int    `json:"code"`
-				Message string `json:"message"`
-			} `json:"error"`
+	const maxRetries = 3
+	var lastErr error
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		if attempt > 0 {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(time.Duration(attempt) * 3 * time.Second):
+			}
 		}
-		if json.Unmarshal(raw, &apiErr) == nil && apiErr.Error.Message != "" {
-			return fmt.Errorf("drive %d: %s", resp.StatusCode, apiErr.Error.Message)
+		var body io.Reader
+		if bodyBytes != nil {
+			body = bytes.NewReader(bodyBytes)
 		}
-		return fmt.Errorf("drive %d: %s", resp.StatusCode, string(raw))
-	}
+		resp, err := d.do(ctx, method, endpoint, body, "application/json")
+		if err != nil {
+			lastErr = err
+			if isRetryable(err) {
+				continue
+			}
+			return err
+		}
+		defer resp.Body.Close()
+		raw, _ := io.ReadAll(resp.Body)
 
-	if out != nil {
-		return json.Unmarshal(raw, out)
+		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+			var apiErr struct {
+				Error struct {
+					Code    int    `json:"code"`
+					Message string `json:"message"`
+				} `json:"error"`
+			}
+			if json.Unmarshal(raw, &apiErr) == nil && apiErr.Error.Message != "" {
+				return fmt.Errorf("drive %d: %s", resp.StatusCode, apiErr.Error.Message)
+			}
+			return fmt.Errorf("drive %d: %s", resp.StatusCode, string(raw))
+		}
+		if out != nil {
+			return json.Unmarshal(raw, out)
+		}
+		return nil
 	}
-	return nil
+	return fmt.Errorf("drive request failed after %d attempts: %w", maxRetries, lastErr)
 }
+
 
 // ── public API ────────────────────────────────────────────────────────────────
 
@@ -340,6 +385,21 @@ func (d *DriveService) UploadFile(ctx context.Context, folderID, fileName, mimeT
 	return created.ID,
 		fmt.Sprintf("https://drive.google.com/file/d/%s/view", created.ID),
 		nil
+}
+
+// DownloadFile fetches raw bytes of a Drive file.
+func (d *DriveService) DownloadFile(ctx context.Context, fileID string) ([]byte, string, error) {
+	resp, err := d.do(ctx, "GET", "/drive/v3/files/"+fileID+"?alt=media&supportsAllDrives=true", nil, "")
+	if err != nil {
+		return nil, "", fmt.Errorf("download: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, "", fmt.Errorf("download status %d: %s", resp.StatusCode, string(body))
+	}
+	data, err := io.ReadAll(resp.Body)
+	return data, resp.Header.Get("Content-Type"), err
 }
 
 func (d *DriveService) DeleteFile(ctx context.Context, fileID string) error {

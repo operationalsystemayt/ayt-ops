@@ -78,6 +78,106 @@ export interface PaymentSchedule {
   days_until: number;
 }
 
+export interface ManifestKeberangkatan {
+  id: string;
+  trip_id: string;
+  peserta_id?: string;
+  payment_schedule_id?: string;
+  tgl_pemesanan?: string;
+  pemesanan?: string;
+  agent?: string;
+  harga_tiket?: number;
+  kode_booking?: string;
+  no_etiket?: string;
+  maskapai?: string;
+  rute_berangkat?: string;
+  tgl_berangkat_flight?: string;
+  jam_berangkat?: string;
+  rute_pulang?: string;
+  tgl_pulang_flight?: string;
+  jam_pulang?: string;
+  bagasi_kabin_kg?: number;
+  bagasi_checkin_kg?: number;
+  unit?: number;
+  klien?: string;
+  tiket_drive_file_id?: string;
+  limit_pembayaran?: string;
+  // Joined from manifest_peserta
+  title?: string;
+  nama_lengkap?: string;
+  no_paspor?: string;
+  place_of_birth?: string;
+  tgl_lahir?: string;
+  place_of_issued?: string;
+  issued_date?: string;
+  expiry_date?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TicketOCRPeserta {
+  nama: string;
+  no_etiket: string;
+}
+
+export interface TicketOCRBookingGroup {
+  kode_booking: string;
+  peserta: TicketOCRPeserta[];
+}
+
+export interface TicketOCRResult {
+  maskapai: string;
+  kode_booking: string;
+  rute_berangkat: string;
+  tgl_berangkat: string;
+  jam_berangkat: string;
+  rute_pulang: string;
+  tgl_pulang: string;
+  jam_pulang: string;
+  bagasi_kabin_kg: number;
+  bagasi_checkin_kg: number;
+  booking_groups?: TicketOCRBookingGroup[];
+  peserta: TicketOCRPeserta[];
+}
+
+export type HotelTipeRoom = "DOUBLE" | "TWIN" | "SINGLE" | "TRIPLE";
+
+export interface ManifestHotel {
+  id?: string;
+  trip_id?: string;
+  rute?: string;
+  nama_hotel?: string;
+  nama_agent?: string;
+  confirmation_number?: string;
+  tgl_stay_mulai?: string;
+  tgl_stay_selesai?: string;
+  jumlah_room?: number;
+  tipe_room?: HotelTipeRoom;
+  jumlah_malam?: number;
+  harga_jpy?: number;
+  harga_idr?: number;
+  total_idr?: number;
+  kurs?: number;
+  peserta_ids: string[];
+  peserta_names: string[];
+  nota_drive_file_id?: string;
+  waktu_pembayaran?: string;
+  payment_schedule_id?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface HotelOCRResult {
+  nama_hotel: string;
+  confirmation_numbers: string[];
+  tgl_checkin: string;
+  tgl_checkout: string;
+  jumlah_room: number;
+  tipe_room: string;
+  harga_jpy: number;
+  kurs: number;
+}
+
 export interface LabaResult {
   trip_id: string;
   total_pemasukan: number;

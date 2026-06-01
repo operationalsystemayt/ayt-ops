@@ -1,6 +1,8 @@
 // lib/trip/api.ts
 import type {
   Trip, ManifestPeserta, TripNote, TripPayment, PaymentSchedule, LabaResult,
+  ManifestKeberangkatan, TicketOCRResult,
+  ManifestHotel, HotelOCRResult,
 } from "@/types/trip";
 
 const BASE = process.env.NEXT_PUBLIC_TRIP_API_URL ?? "http://localhost:8080";
@@ -100,6 +102,104 @@ export const ocrApi = {
     fd.append("file", file);
     return reqForm<OcrResult>(`${BASE}/api/ocr/paspor`, fd);
   },
+};
+
+// ── Manifest CSV + Passport Compilation ────────────────────────────────────────
+export const manifestApi = {
+  uploadCsvToDrive: (tripId: string) =>
+    req<{ file_name: string; drive_file_id: string; drive_view_url: string }>(
+      `/api/trips/${tripId}/peserta/manifest-csv`, { method: "POST" },
+    ),
+  passportCompilation: (tripId: string) =>
+    req<{ file_name: string; drive_view_url: string; total_images: number }>(
+      `/api/trips/${tripId}/passport-compilation`, { method: "POST" },
+    ),
+};
+
+// ── Keberangkatan ──────────────────────────────────────────────────────────────
+export const keberangkatanApi = {
+  list: (tripId: string) =>
+    req<ManifestKeberangkatan[]>(`/api/trips/${tripId}/keberangkatan`),
+  create: (tripId: string, body: Partial<ManifestKeberangkatan>) =>
+    req<ManifestKeberangkatan>(`/api/trips/${tripId}/keberangkatan`, {
+      method: "POST", body: JSON.stringify(body),
+    }),
+  update: (tripId: string, kid: string, body: Partial<ManifestKeberangkatan>) =>
+    req<void>(`/api/trips/${tripId}/keberangkatan/${kid}`, {
+      method: "PUT", body: JSON.stringify(body),
+    }),
+  delete: (tripId: string, kid: string) =>
+    req<void>(`/api/trips/${tripId}/keberangkatan/${kid}`, { method: "DELETE" }),
+  uploadTiket: (tripId: string, fd: FormData) =>
+    reqForm<{ drive_file_id: string; drive_view_url: string }>(
+      `${BASE}/api/trips/${tripId}/keberangkatan/upload-tiket`, fd,
+    ),
+  ocrTiket: (tripId: string, fd: FormData) =>
+    reqForm<TicketOCRResult>(
+      `${BASE}/api/trips/${tripId}/keberangkatan/ocr-tiket`, fd,
+    ),
+  exportCsv: async (tripId: string): Promise<void> => {
+    const url = `${BASE}/api/trips/${tripId}/keberangkatan/export-csv`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const blob = await res.blob();
+    const disposition = res.headers.get("Content-Disposition") ?? "";
+    const match = disposition.match(/filename="([^"]+)"/);
+    const filename = match ? match[1] : `manifest_keberangkatan.csv`;
+    const objUrl = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = objUrl;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(objUrl);
+  },
+  uploadCsvToDrive: (tripId: string) =>
+    req<{ file_name: string; drive_view_url: string }>(
+      `/api/trips/${tripId}/keberangkatan/upload-csv`, { method: "POST" },
+    ),
+};
+
+// ── Hotel ──────────────────────────────────────────────────────────────────────
+export const hotelApi = {
+  list: (tripId: string) =>
+    req<ManifestHotel[]>(`/api/trips/${tripId}/hotel`),
+  create: (tripId: string, body: Partial<ManifestHotel>) =>
+    req<ManifestHotel>(`/api/trips/${tripId}/hotel`, {
+      method: "POST", body: JSON.stringify(body),
+    }),
+  update: (tripId: string, hid: string, body: Partial<ManifestHotel>) =>
+    req<void>(`/api/trips/${tripId}/hotel/${hid}`, {
+      method: "PUT", body: JSON.stringify(body),
+    }),
+  delete: (tripId: string, hid: string) =>
+    req<void>(`/api/trips/${tripId}/hotel/${hid}`, { method: "DELETE" }),
+  uploadNota: (tripId: string, fd: FormData) =>
+    reqForm<{ drive_file_id: string; drive_view_url: string }>(
+      `${BASE}/api/trips/${tripId}/hotel/upload-nota`, fd,
+    ),
+  ocrNota: (tripId: string, fd: FormData) =>
+    reqForm<HotelOCRResult>(
+      `${BASE}/api/trips/${tripId}/hotel/ocr-nota`, fd,
+    ),
+  exportCsv: async (tripId: string): Promise<void> => {
+    const url = `${BASE}/api/trips/${tripId}/hotel/export-csv`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const blob = await res.blob();
+    const disposition = res.headers.get("Content-Disposition") ?? "";
+    const match = disposition.match(/filename="([^"]+)"/);
+    const filename = match ? match[1] : `manifest_hotel.csv`;
+    const objUrl = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = objUrl;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(objUrl);
+  },
+  uploadCsvToDrive: (tripId: string) =>
+    req<{ file_name: string; drive_view_url: string }>(
+      `/api/trips/${tripId}/hotel/upload-csv`, { method: "POST" },
+    ),
 };
 
 // ── Notes ──────────────────────────────────────────────────────────────────────

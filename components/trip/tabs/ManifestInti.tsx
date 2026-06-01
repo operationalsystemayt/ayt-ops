@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useRef, useCallback } from "react";
-import { pesertaApi, ocrApi } from "@/lib/trip/api";
+import { pesertaApi, ocrApi, manifestApi } from "@/lib/trip/api";
 import { Button } from "@/components/ui";
 import { getPesertaStatus, calcAge } from "@/types/trip";
 import type { ManifestPeserta, PesertaTitle, RoomType, MealType } from "@/types/trip";
@@ -57,15 +57,92 @@ function blankUpload(): UploadState {
   };
 }
 
-interface Props { tripId: string }
+// ── CSV helpers ───────────────────────────────────────────────────────────────
 
-export function ManifestInti({ tripId }: Props) {
+function csvRow(cells: (string | number)[]) {
+  return cells.map((c) => `"${String(c ?? "").replace(/"/g, '""')}"`).join(",");
+}
+
+const MONTHS_UPPER = ["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
+const MONTHS_TITLE = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+// "2006-01-02" → "9 Aug 1981" (no leading zero, title-case month)
+function fmtDateForCsv(s?: string | null): string {
+  if (!s) return "";
+  const [y, m, d] = s.split("-").map(Number);
+  if (!y || !m || !d) return s;
+  return `${d} ${MONTHS_TITLE[m - 1]} ${y}`;
+}
+
+// "2026-01-29" + "2026-02-04" → "29 JAN - 4 FEB 2026"
+function tripDateRange(start: string, end: string): string {
+  const [sy, sm, sd] = start.split("-").map(Number);
+  const [ey, em, ed] = end.split("-").map(Number);
+  if (!sy || !sm || !sd || !ey || !em || !ed) return `${start} - ${end}`;
+  return `${sd} ${MONTHS_UPPER[sm - 1]} - ${ed} ${MONTHS_UPPER[em - 1]} ${ey}`;
+}
+
+function empty13(): string[] { return Array(13).fill(""); }
+
+function downloadManifestCsv(
+  list: ManifestPeserta[],
+  tripName: string,
+  tglBerangkat: string,
+  tglPulang: string,
+) {
+  const rows: (string | number)[][] = [
+    // Header block
+    ["ANGKASA YUDISTIRA TRAVEL", ...Array(12).fill("")],
+    [`NOTE PEMESANAN TIKET - ${tripName.toUpperCase()}`, ...Array(12).fill("")],
+    [tripDateRange(tglBerangkat, tglPulang), ...Array(12).fill("")],
+    empty13(),
+    // Two-row column header
+    ["NO ", "Title", "NAME", "ROOM TYPE", "PASSPORT NO", "BIRTH", "", "", "VALIDITY PASSPOR", "", "", "UNIT", "KLIEN"],
+    ["", "", "", "", "", "PLACE", "AGE", "DATE", "PLACE OF ISSUED", "ISSUED DATE", "EXPIRY", "", ""],
+    // Data rows
+    ...list.map((p, i) => [
+      i + 1,
+      p.title ?? "",
+      p.nama_lengkap,
+      p.room_type ?? "",
+      p.no_paspor ?? "",
+      p.place_of_birth ?? "",
+      p.tgl_lahir ? calcAge(p.tgl_lahir) : "",
+      fmtDateForCsv(p.tgl_lahir),
+      p.place_of_issued ?? "",
+      fmtDateForCsv(p.issued_date),
+      fmtDateForCsv(p.expiry_date),
+      p.unit ?? "",
+      p.klien ?? "",
+    ]),
+    // Footer
+    empty13(), empty13(), empty13(), empty13(),
+    ["", "SUDAH PUNYA VISA", ...Array(11).fill("")],
+    ["", "URUS VISA SENDIRI", ...Array(11).fill("")],
+  ];
+
+  const csv = rows.map(csvRow).join("\n");
+  const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `manifest_peserta_${tripName.replace(/\s+/g, "_")}_${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+interface Props { tripId: string; tripName: string; tglBerangkat: string; tglPulang: string }
+
+export function ManifestInti({ tripId, tripName, tglBerangkat, tglPulang }: Props) {
   const [list, setList]     = useState<ManifestPeserta[]>([]);
   const [loading, setLoading] = useState(true);
   const [adding, setAdding]   = useState(false);
   const [form, setForm]       = useState(blankForm());
   const [editId, setEditId]   = useState<string | null>(null);
   const [uploads, setUploads] = useState<UploadState>(blankUpload());
+  const [uploading, setUploading]       = useState(false);
+  const [compiling, setCompiling]       = useState(false);
+  const [driveMsg, setDriveMsg]         = useState<{ ok: boolean; text: string } | null>(null);
   const [scanning, setScanning]     = useState(false);
   const [scanMsg, setScanMsg]       = useState<{ ok: boolean; text: string } | null>(null);
   const [pasporPreview, setPasporPreview] = useState<string | null>(null);
@@ -141,11 +218,8 @@ export function ManifestInti({ tripId }: Props) {
       }
     }
 
+    clearAllFormState();
     setAdding(false);
-    setEditId(null);
-    setForm(blankForm());
-    setUploads(blankUpload());
-    setScanMsg(null);
     load();
   };
 
@@ -175,33 +249,38 @@ export function ManifestInti({ tripId }: Props) {
   };
 
   const startEdit = (p: ManifestPeserta) => {
+    clearAllFormState();
     setForm({
-      title:          (p.title ?? "MR") as PesertaTitle,
-      nama_lengkap:   p.nama_lengkap,
-      no_paspor:      p.no_paspor      ?? "",
-      place_of_birth: p.place_of_birth ?? "",
-      place_of_issued:p.place_of_issued?? "",
-      issued_date:    p.issued_date    ?? "",
-      tgl_lahir:      p.tgl_lahir      ?? "",
-      expiry_date:    p.expiry_date    ?? "",
-      room_type:      (p.room_type ?? "") as RoomType | "",
-      meals:          (p.meals ?? "NON_MUSLIM") as MealType,
-      klien:          p.klien ?? "",
+      title:           (p.title ?? "MR") as PesertaTitle,
+      nama_lengkap:    p.nama_lengkap,
+      no_paspor:       p.no_paspor       ?? "",
+      place_of_birth:  p.place_of_birth  ?? "",
+      place_of_issued: p.place_of_issued ?? "",
+      issued_date:     p.issued_date     ?? "",
+      tgl_lahir:       p.tgl_lahir       ?? "",
+      expiry_date:     p.expiry_date     ?? "",
+      room_type:       (p.room_type ?? "") as RoomType | "",
+      meals:           (p.meals ?? "NON_MUSLIM") as MealType,
+      klien:           p.klien ?? "",
     });
-    setUploads(blankUpload());
-    setScanMsg(null);
     setEditId(p.id);
     setAdding(true);
   };
 
-  const resetForm = () => {
+  // Clears every piece of form state — called on save, on cancel, and on "+ Tambah"
+  const clearAllFormState = () => {
     setPasporPreview((prev) => { if (prev) URL.revokeObjectURL(prev); return null; });
     setZoomOpen(false);
-    setAdding(false);
     setEditId(null);
     setForm(blankForm());
     setUploads(blankUpload());
     setScanMsg(null);
+    setDriveMsg(null);
+  };
+
+  const resetForm = () => {
+    clearAllFormState();
+    setAdding(false);
   };
 
   if (loading) return <div className="p-6 text-sm text-neutral-600">Memuat...</div>;
@@ -209,12 +288,79 @@ export function ManifestInti({ tripId }: Props) {
   return (
     <div>
       {/* Toolbar */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-neutral-800">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-neutral-800 flex-wrap gap-2">
         <span className="text-xs text-neutral-400">{list.length} peserta</span>
-        <Button size="sm" variant="outline" onClick={() => adding ? resetForm() : setAdding(true)}>
-          {adding ? "Tutup form" : "+ Tambah"}
-        </Button>
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Download CSV */}
+          <button
+            onClick={() => downloadManifestCsv(list, tripName, tglBerangkat, tglPulang)}
+            disabled={list.length === 0}
+            className="rounded-lg border border-neutral-700 hover:border-teal-500 hover:text-teal-400 text-neutral-400 text-xs py-1.5 px-3 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap"
+          >
+            ↓ Download CSV
+          </button>
+
+          {/* Upload CSV to Drive */}
+          <button
+            onClick={async () => {
+              setUploading(true);
+              setDriveMsg(null);
+              try {
+                const res = await manifestApi.uploadCsvToDrive(tripId);
+                setDriveMsg({ ok: true, text: `Terupload: ${res.file_name}` });
+              } catch (e: any) {
+                setDriveMsg({ ok: false, text: e.message ?? "Upload gagal" });
+              } finally {
+                setUploading(false);
+              }
+            }}
+            disabled={uploading || list.length === 0}
+            className="rounded-lg border border-neutral-700 hover:border-teal-500 hover:text-teal-400 text-neutral-400 text-xs py-1.5 px-3 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap"
+          >
+            {uploading ? "Uploading…" : "↑ Upload ke Drive"}
+          </button>
+
+          {/* Kompilasi Paspor → DOCX ke Drive */}
+          <button
+            onClick={async () => {
+              setCompiling(true);
+              setDriveMsg(null);
+              try {
+                const res = await manifestApi.passportCompilation(tripId);
+                setDriveMsg({ ok: true, text: `Kompilasi selesai: ${res.total_images} paspor → ${res.file_name}` });
+              } catch (e: any) {
+                setDriveMsg({ ok: false, text: e.message ?? "Kompilasi gagal" });
+              } finally {
+                setCompiling(false);
+              }
+            }}
+            disabled={compiling || list.filter(p => p.paspor_drive_file_id).length === 0}
+            className="rounded-lg border border-neutral-700 hover:border-teal-500 hover:text-teal-400 text-neutral-400 text-xs py-1.5 px-3 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap"
+          >
+            {compiling ? "Mengompilasi…" : "📋 Kompilasi Paspor"}
+          </button>
+
+          <Button size="sm" variant="outline" onClick={() => {
+            if (adding) { resetForm(); }
+            else { clearAllFormState(); setAdding(true); }
+          }}>
+            {adding ? "Tutup form" : "+ Tambah"}
+          </Button>
+        </div>
       </div>
+
+      {/* Drive upload message */}
+      {driveMsg && (
+        <div className={clsx(
+          "px-4 py-2 text-xs border-b border-neutral-800 flex items-center justify-between",
+          driveMsg.ok ? "text-teal-400 bg-teal-950/20" : "text-red-400 bg-red-950/20"
+        )}>
+          <span>{driveMsg.ok ? "✓" : "⚠"} {driveMsg.text}</span>
+          {driveMsg.ok && (
+            <button onClick={() => setDriveMsg(null)} className="text-neutral-600 hover:text-neutral-400 cursor-pointer ml-4">×</button>
+          )}
+        </div>
+      )}
 
       {/* Input Form */}
       {adding && (

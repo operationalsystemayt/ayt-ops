@@ -4,6 +4,8 @@ import { useParams, useRouter } from "next/navigation";
 import { tripApi } from "@/lib/trip/api";
 import { Badge, Spinner } from "@/components/ui";
 import { ManifestInti } from "@/components/trip/tabs/ManifestInti";
+import { ManifestKeberangkatan } from "@/components/trip/tabs/ManifestKeberangkatan";
+import { ManifestHotel } from "@/components/trip/tabs/ManifestHotel";
 import { TripNotes } from "@/components/trip/tabs/TripNotes";
 import { TripPayments } from "@/components/trip/tabs/TripPayments";
 import { TabScaffold } from "@/components/trip/tabs/TabScaffold";
@@ -87,9 +89,9 @@ export default function TripDetailPage() {
 
           {/* Tab content */}
           <div>
-            {activeTab === "2a" && <ManifestInti tripId={id} />}
-            {activeTab === "2b" && <TabScaffold label="Manifest Keberangkatan" />}
-            {activeTab === "2c" && <TabScaffold label="Room Hotel" />}
+            {activeTab === "2a" && <ManifestInti tripId={id} tripName={trip.nama_trip} tglBerangkat={trip.tgl_berangkat} tglPulang={trip.tgl_pulang} />}
+            {activeTab === "2b" && <ManifestKeberangkatan tripId={id} tripName={trip.nama_trip} tglBerangkat={trip.tgl_berangkat} tglPulang={trip.tgl_pulang} />}
+            {activeTab === "2c" && <ManifestHotel tripId={id} tripName={trip.nama_trip} tglBerangkat={trip.tgl_berangkat} tglPulang={trip.tgl_pulang} />}
             {activeTab === "2d" && <TabScaffold label="Transportasi" />}
             {activeTab === "2e" && <TabScaffold label="Optional Tour" />}
             {activeTab === "2f" && <TabScaffold label="Visa" />}

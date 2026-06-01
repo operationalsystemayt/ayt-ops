@@ -75,6 +75,104 @@ type PaymentSchedule struct {
 	DaysUntil       int        `json:"days_until"`
 }
 
+type ManifestKeberangkatan struct {
+	ID                 *string   `json:"id"`
+	TripID             *string   `json:"trip_id"`
+	PesertaID          *string   `json:"peserta_id"`
+	PaymentScheduleID  *string   `json:"payment_schedule_id"`
+	TglPemesanan       *string   `json:"tgl_pemesanan"`
+	Pemesanan          *string   `json:"pemesanan"`
+	Agent              *string   `json:"agent"`
+	HargaTiket         *float64  `json:"harga_tiket"`
+	KodeBooking        *string   `json:"kode_booking"`
+	NoEtiket           *string   `json:"no_etiket"`
+	Maskapai           *string   `json:"maskapai"`
+	RuteBerangkat      *string   `json:"rute_berangkat"`
+	TglBerangkatFlight *string   `json:"tgl_berangkat_flight"`
+	JamBerangkat       *string   `json:"jam_berangkat"`
+	RutePulang         *string   `json:"rute_pulang"`
+	TglPulangFlight    *string   `json:"tgl_pulang_flight"`
+	JamPulang          *string   `json:"jam_pulang"`
+	BagasiKabinKg      *float64  `json:"bagasi_kabin_kg"`
+	BagasiCheckinKg    *float64  `json:"bagasi_checkin_kg"`
+	Unit               *int      `json:"unit"`
+	Klien              *string   `json:"klien"`
+	TiketDriveFileID   *string   `json:"tiket_drive_file_id"`
+	LimitPembayaran    *string   `json:"limit_pembayaran"`
+	// Joined from manifest_peserta
+	Title         *string `json:"title"`
+	NamaLengkap   *string `json:"nama_lengkap"`
+	NoPaspor      *string `json:"no_paspor"`
+	PlaceOfBirth  *string `json:"place_of_birth"`
+	TglLahir      *string `json:"tgl_lahir"`
+	PlaceOfIssued *string `json:"place_of_issued"`
+	IssuedDate    *string `json:"issued_date"`
+	ExpiryDate    *string `json:"expiry_date"`
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
+}
+
+type TicketOCRPeserta struct {
+	Nama     string `json:"nama"`
+	NoEtiket string `json:"no_etiket"`
+}
+
+type TicketOCRBookingGroup struct {
+	KodeBooking string             `json:"kode_booking"`
+	Peserta     []TicketOCRPeserta `json:"peserta"`
+}
+
+type TicketOCRResult struct {
+	Maskapai        string                  `json:"maskapai"`
+	KodeBooking     string                  `json:"kode_booking"`
+	RuteBerangkat   string                  `json:"rute_berangkat"`
+	TglBerangkat    string                  `json:"tgl_berangkat"`
+	JamBerangkat    string                  `json:"jam_berangkat"`
+	RutePulang      string                  `json:"rute_pulang"`
+	TglPulang       string                  `json:"tgl_pulang"`
+	JamPulang       string                  `json:"jam_pulang"`
+	BagasiKabinKg   float64                 `json:"bagasi_kabin_kg"`
+	BagasiCheckinKg float64                 `json:"bagasi_checkin_kg"`
+	BookingGroups   []TicketOCRBookingGroup `json:"booking_groups"`
+	Peserta         []TicketOCRPeserta      `json:"peserta"` // legacy fallback
+}
+
+type ManifestHotel struct {
+	ID                 *string   `json:"id"`
+	TripID             *string   `json:"trip_id"`
+	Rute               *string   `json:"rute"`
+	NamaHotel          *string   `json:"nama_hotel"`
+	NamaAgent          *string   `json:"nama_agent"`
+	ConfirmationNumber *string   `json:"confirmation_number"`
+	TglStayMulai       *string   `json:"tgl_stay_mulai"`
+	TglStaySelesai     *string   `json:"tgl_stay_selesai"`
+	JumlahRoom         *int      `json:"jumlah_room"`
+	TipeRoom           *string   `json:"tipe_room"`
+	JumlahMalam        *int      `json:"jumlah_malam"`
+	HargaJpy           *float64  `json:"harga_jpy"`
+	HargaIdr           *float64  `json:"harga_idr"`
+	TotalIdr           *float64  `json:"total_idr"`
+	Kurs               *float64  `json:"kurs"`
+	PesertaIds         []string  `json:"peserta_ids"`
+	PesertaNames       []string  `json:"peserta_names"`
+	NotaDriveFileId    *string   `json:"nota_drive_file_id"`
+	WaktuPembayaran    *string   `json:"waktu_pembayaran"`
+	PaymentScheduleId  *string   `json:"payment_schedule_id"`
+	CreatedAt          time.Time `json:"created_at"`
+	UpdatedAt          time.Time `json:"updated_at"`
+}
+
+type HotelOCRResult struct {
+	NamaHotel           string   `json:"nama_hotel"`
+	ConfirmationNumbers []string `json:"confirmation_numbers"`
+	TglCheckin          string   `json:"tgl_checkin"`
+	TglCheckout         string   `json:"tgl_checkout"`
+	JumlahRoom          int      `json:"jumlah_room"`
+	TipeRoom            string   `json:"tipe_room"`
+	HargaJpy            float64  `json:"harga_jpy"`
+	Kurs                float64  `json:"kurs"`
+}
+
 type LabaResult struct {
 	TripID              string  `json:"trip_id"`
 	TotalPemasukan      float64 `json:"total_pemasukan"`
