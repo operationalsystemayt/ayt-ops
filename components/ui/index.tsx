@@ -1,35 +1,136 @@
 // components/ui/index.tsx
 "use client";
-import { forwardRef, InputHTMLAttributes, SelectHTMLAttributes, ButtonHTMLAttributes } from "react";
+import {
+  forwardRef, InputHTMLAttributes, SelectHTMLAttributes, ButtonHTMLAttributes,
+  useState, useEffect, useRef,
+} from "react";
 import { clsx } from "clsx";
 
 // ─── NumericInput ─────────────────────────────────────────────────────────────
+function dotFmt(v: number | ""): string {
+  if (v === "" || v == null) return "";
+  const n = Math.round(Number(v));
+  if (isNaN(n)) return "";
+  return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+}
+
 interface NumericInputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, "onChange"> {
   value: number | "";
   onChange: (val: number | "") => void;
   className?: string;
 }
 export const NumericInput = forwardRef<HTMLInputElement, NumericInputProps>(
-  ({ value, onChange, className, ...rest }, ref) => (
-    <input
-      ref={ref}
-      type="number"
-      value={value}
-      onChange={(e) => {
-        const raw = e.target.value;
-        onChange(raw === "" ? "" : Number(raw));
-      }}
-      className={clsx(
-        "w-full rounded-lg bg-neutral-900 border border-neutral-700 px-3 py-2",
-        "text-sm text-neutral-100 font-mono placeholder-neutral-600",
-        "focus:outline-none focus:border-[#37bea3] transition-colors",
-        className
-      )}
-      {...rest}
-    />
-  )
+  ({ value, onChange, className, onFocus: extFocus, onBlur: extBlur, ...rest }, ref) => {
+    const [display, setDisplay]  = useState(() => dotFmt(value));
+    const timerRef               = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const focusedRef             = useRef(false);
+
+    useEffect(() => {
+      if (!focusedRef.current) setDisplay(dotFmt(value));
+    }, [value]);
+
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const raw = e.target.value.replace(/\./g, "").replace(/[^\d]/g, "");
+      setDisplay(raw);
+      onChange(raw === "" ? "" : Number(raw));
+      if (timerRef.current) clearTimeout(timerRef.current);
+      timerRef.current = setTimeout(() => setDisplay(dotFmt(raw === "" ? "" : Number(raw))), 600);
+    };
+
+    const handleFocus = (e: React.FocusEvent<HTMLInputElement>) => {
+      focusedRef.current = true;
+      if (timerRef.current) clearTimeout(timerRef.current);
+      setDisplay(display.replace(/\./g, ""));
+      extFocus?.(e);
+    };
+
+    const handleBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+      focusedRef.current = false;
+      if (timerRef.current) clearTimeout(timerRef.current);
+      setDisplay(dotFmt(value));
+      extBlur?.(e);
+    };
+
+    return (
+      <input
+        ref={ref}
+        {...rest}
+        type="text"
+        inputMode="numeric"
+        value={display}
+        onChange={handleChange}
+        onFocus={handleFocus}
+        onBlur={handleBlur}
+        className={clsx(
+          "w-full rounded-lg bg-neutral-900 border border-neutral-700 px-3 py-2",
+          "text-sm text-neutral-100 font-mono placeholder-neutral-600",
+          "focus:outline-none focus:border-[#37bea3] transition-colors",
+          className
+        )}
+      />
+    );
+  }
 );
 NumericInput.displayName = "NumericInput";
+
+// ─── FormattedInput (string-value, dot thousands separator) ───────────────────
+// Use this for form state that stores numbers as strings (not number | "").
+function strDotFmt(v: string): string {
+  const n = parseInt(v.replace(/\./g, ""), 10);
+  if (isNaN(n) || v === "") return v;
+  return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+}
+
+interface FormattedInputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, "onChange" | "value"> {
+  value: string;
+  onChange: (raw: string) => void;
+  className?: string;
+}
+
+export function FormattedInput({ value, onChange, className, onFocus: extFocus, onBlur: extBlur, ...rest }: FormattedInputProps) {
+  const [display, setDisplay] = useState(() => strDotFmt(value));
+  const timerRef              = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const focusedRef            = useRef(false);
+
+  useEffect(() => {
+    if (!focusedRef.current) setDisplay(strDotFmt(value));
+  }, [value]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value.replace(/\./g, "").replace(/[^\d]/g, "");
+    setDisplay(raw);
+    onChange(raw);
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => setDisplay(strDotFmt(raw)), 600);
+  };
+
+  const handleFocus = (e: React.FocusEvent<HTMLInputElement>) => {
+    focusedRef.current = true;
+    if (timerRef.current) clearTimeout(timerRef.current);
+    setDisplay(display.replace(/\./g, ""));
+    extFocus?.(e);
+  };
+
+  const handleBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+    focusedRef.current = false;
+    if (timerRef.current) clearTimeout(timerRef.current);
+    setDisplay(strDotFmt(value));
+    extBlur?.(e);
+  };
+
+  return (
+    <input
+      {...rest}
+      type="text"
+      inputMode="numeric"
+      value={display}
+      onChange={handleChange}
+      onFocus={handleFocus}
+      onBlur={handleBlur}
+      className={className}
+    />
+  );
+}
 
 // ─── TextInput ────────────────────────────────────────────────────────────────
 interface TextInputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, "onChange"> {

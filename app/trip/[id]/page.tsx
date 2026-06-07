@@ -11,12 +11,25 @@ import { ManifestOptionalTour } from "@/components/trip/tabs/ManifestOptionalTou
 import { TripNotes } from "@/components/trip/tabs/TripNotes";
 import { TripPayments } from "@/components/trip/tabs/TripPayments";
 import { ManifestVisa } from "@/components/trip/tabs/ManifestVisa";
+import { ManifestItinerary } from "@/components/trip/tabs/ManifestItinerary";
+import { ManifestAsuransi } from "@/components/trip/tabs/ManifestAsuransi";
+import { RabRealisasi } from "@/components/trip/tabs/RabRealisasi";
 import type { Trip, TripStatus } from "@/types/trip";
 import { clsx } from "clsx";
 
 const STATUS_BADGE: Record<TripStatus, "default" | "success" | "warning" | "danger" | "info"> = {
   draft: "default", confirmed: "info", ongoing: "warning", done: "success", cancelled: "danger",
 };
+
+const STATUS_SELECT: Record<TripStatus, string> = {
+  draft:     "bg-neutral-700 text-neutral-300 border-neutral-600",
+  confirmed: "bg-blue-500/20 text-blue-400 border-blue-500/30",
+  ongoing:   "bg-amber-500/20 text-amber-400 border-amber-500/30",
+  done:      "bg-teal-500/20 text-teal-400 border-teal-500/30",
+  cancelled: "bg-red-500/20 text-red-400 border-red-500/30",
+};
+
+const ALL_STATUSES: TripStatus[] = ["draft", "confirmed", "ongoing", "done", "cancelled"];
 
 const TABS = [
   { key: "2a", label: "Manifest Inti" },
@@ -27,14 +40,18 @@ const TABS = [
   { key: "2f", label: "Visa" },
   { key: "2g", label: "Payment" },
   { key: "2h", label: "Notes" },
+  { key: "2i", label: "Itinerary" },
+  { key: "2j", label: "Asuransi" },
+  { key: "2k", label: "RAB vs Realisasi" },
 ] as const;
 
 export default function TripDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const [trip, setTrip] = useState<Trip | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<string>("2a");
+  const [loading, setLoading]         = useState(true);
+  const [activeTab, setActiveTab]     = useState<string>("2a");
+  const [statusUpdating, setStatusUpdating] = useState(false);
 
   useEffect(() => {
     tripApi.get(id).then(setTrip).catch(() => router.push("/trip")).finally(() => setLoading(false));
@@ -63,7 +80,32 @@ export default function TripDetailPage() {
               <div className="flex items-center gap-3 mt-1.5 flex-wrap">
                 <span className="text-xs text-neutral-500">{trip.tgl_berangkat} → {trip.tgl_pulang}</span>
                 <span className="text-xs text-neutral-500">{hari}H / {trip.total_pax} pax</span>
-                <Badge variant={STATUS_BADGE[trip.status]}>{trip.status}</Badge>
+                <select
+                  value={trip.status}
+                  disabled={statusUpdating}
+                  onChange={async (e) => {
+                    const next = e.target.value as TripStatus;
+                    const prev = trip.status;
+                    setTrip(t => t ? { ...t, status: next } : t);
+                    setStatusUpdating(true);
+                    try {
+                      await tripApi.update(id, { status: next });
+                    } catch {
+                      setTrip(t => t ? { ...t, status: prev } : t);
+                    } finally {
+                      setStatusUpdating(false);
+                    }
+                  }}
+                  className={clsx(
+                    "inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border",
+                    "cursor-pointer focus:outline-none appearance-none transition-colors disabled:opacity-60",
+                    STATUS_SELECT[trip.status]
+                  )}
+                >
+                  {ALL_STATUSES.map(s => (
+                    <option key={s} value={s} className="bg-neutral-900 text-neutral-100">{s}</option>
+                  ))}
+                </select>
               </div>
             </div>
           </div>
@@ -99,6 +141,9 @@ export default function TripDetailPage() {
             {activeTab === "2f" && <ManifestVisa tripId={id} tripName={trip.nama_trip} tglBerangkat={trip.tgl_berangkat} tglPulang={trip.tgl_pulang} />}
             {activeTab === "2g" && <TripPayments tripId={id} tripName={trip.nama_trip} />}
             {activeTab === "2h" && <TripNotes tripId={id} />}
+            {activeTab === "2i" && <ManifestItinerary tripId={id} tripName={trip.nama_trip} />}
+            {activeTab === "2j" && <ManifestAsuransi tripId={id} tripName={trip.nama_trip} />}
+            {activeTab === "2k" && <RabRealisasi tripId={id} tripName={trip.nama_trip} totalPax={trip.total_pax} rabMasterId={trip.rab_master_id} />}
           </div>
         </div>
       </div>

@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
 import { hotelApi, pesertaApi } from "@/lib/trip/api";
-import { Button } from "@/components/ui";
+import { Button, FormattedInput } from "@/components/ui";
 import type { ManifestHotel, ManifestPeserta } from "@/types/trip";
 import { clsx } from "clsx";
 
@@ -48,6 +48,7 @@ interface ConfirmationGroup {
   harga_jpy: string;
   kurs: string;
   harga_idr: string;
+  harga_jual_idr: string;
   waktu_pembayaran: string;
   peserta_rows: PesertaRow[];
 }
@@ -71,6 +72,7 @@ const newConfirmation = (): ConfirmationGroup => ({
   harga_jpy: "",
   kurs: "",
   harga_idr: "",
+  harga_jual_idr: "",
   waktu_pembayaran: "",
   peserta_rows: [newPesertaRow()],
 });
@@ -290,6 +292,7 @@ export function ManifestHotel({ tripId }: Props) {
             harga_jpy: hargaJpy,
             kurs: kurs,
             harga_idr: hargaIdr,
+            harga_jual_idr: parseFloat(conf.harga_jual_idr) || undefined,
             peserta_ids: pesertaIds,
             nota_drive_file_id: finalDriveId || undefined,
             waktu_pembayaran: conf.waktu_pembayaran || undefined,
@@ -349,6 +352,7 @@ export function ManifestHotel({ tripId }: Props) {
         harga_jpy: item.harga_jpy != null ? String(item.harga_jpy) : "",
         kurs: item.kurs != null ? String(item.kurs) : "",
         harga_idr: item.harga_idr != null ? String(item.harga_idr) : "",
+        harga_jual_idr: item.harga_jual_idr != null ? String(item.harga_jual_idr) : "",
         waktu_pembayaran: item.waktu_pembayaran ?? "",
         peserta_rows: item.peserta_ids.length > 0
           ? item.peserta_ids.map(pid => ({ _key: uid(), peserta_id: pid }))
@@ -370,6 +374,8 @@ export function ManifestHotel({ tripId }: Props) {
       {/* ── Toolbar ─────────────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-neutral-800 flex-wrap gap-2">
         <span className="text-xs text-neutral-400">{list.length} hotel</span>
+        <span className="text-xs text-neutral-400">Total harga beli: {fmtIdr(list.reduce((sum, h) => sum + (h.harga_idr ?? 0), 0))}</span>
+        <span className="text-xs text-neutral-400">Rata rata per pax: {fmtIdr(list.length > 0 ? list.reduce((sum, h) => sum + (h.harga_idr ?? 0), 0) / list.reduce((sum, h) => sum + (h.peserta_ids?.length ?? 0), 0) : 0)}</span>
         <div className="flex items-center gap-2 flex-wrap">
           <input
             ref={notaRef}
@@ -548,10 +554,9 @@ export function ManifestHotel({ tripId }: Props) {
                             </div>
                             <div className="w-16">
                               <label className={lbl}>Jml Room</label>
-                              <input
-                                type="number"
+                              <FormattedInput
                                 value={conf.jumlah_room}
-                                onChange={e => setConf(hi, ci, { jumlah_room: e.target.value })}
+                                onChange={v => setConf(hi, ci, { jumlah_room: v })}
                                 placeholder="1"
                                 className={inp}
                               />
@@ -583,31 +588,37 @@ export function ManifestHotel({ tripId }: Props) {
                           <div className="flex items-center gap-2 mb-2 flex-wrap">
                             <div className="w-32">
                               <label className={lbl}>Harga JPY (¥)</label>
-                              <input
-                                type="number"
+                              <FormattedInput
                                 value={conf.harga_jpy}
-                                onChange={e => handleConfChange(hi, ci, "harga_jpy", e.target.value)}
+                                onChange={v => handleConfChange(hi, ci, "harga_jpy", v)}
                                 placeholder="129000"
                                 className={inp}
                               />
                             </div>
                             <div className="w-24">
                               <label className={lbl}>Kurs</label>
-                              <input
-                                type="number"
+                              <FormattedInput
                                 value={conf.kurs}
-                                onChange={e => handleConfChange(hi, ci, "kurs", e.target.value)}
-                                placeholder="108.5"
+                                onChange={v => handleConfChange(hi, ci, "kurs", v)}
+                                placeholder="108"
                                 className={inp}
                               />
                             </div>
                             <div className="w-36">
-                              <label className={lbl}>Harga IDR (auto)</label>
-                              <input
-                                type="number"
+                              <label className={lbl}>Harga Beli IDR (auto)</label>
+                              <FormattedInput
                                 value={conf.harga_idr}
-                                onChange={e => setConf(hi, ci, { harga_idr: e.target.value })}
+                                onChange={v => setConf(hi, ci, { harga_idr: v })}
                                 placeholder="auto"
+                                className={inp}
+                              />
+                            </div>
+                            <div className="w-36">
+                              <label className={lbl}>Harga Jual IDR</label>
+                              <FormattedInput
+                                value={conf.harga_jual_idr}
+                                onChange={v => setConf(hi, ci, { harga_jual_idr: v })}
+                                placeholder="0"
                                 className={inp}
                               />
                             </div>
@@ -706,7 +717,7 @@ export function ManifestHotel({ tripId }: Props) {
         <table className="w-full">
           <thead>
             <tr className="border-b border-neutral-800">
-              {["RUTE","NAMA HOTEL","AGENT","CONF NO","TGL STAY","JML ROOM","TIPE","NAMA TAMU","JPY","RUPIAH","TOTAL","WAKTU BAYAR","KURS",""].map((col, i) => (
+              {["RUTE","NAMA HOTEL","AGENT","CONF NO","TGL STAY","JML ROOM","TIPE","NAMA TAMU","JPY","HARGA BELI","TOTAL BELI","HARGA JUAL","WAKTU BAYAR","KURS",""].map((col, i) => (
                 <th key={i} className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wider text-neutral-600 whitespace-nowrap">
                   {col}
                 </th>
@@ -716,7 +727,7 @@ export function ManifestHotel({ tripId }: Props) {
           <tbody className="divide-y divide-neutral-800/50">
             {list.length === 0 && (
               <tr>
-                <td colSpan={14} className="px-4 py-8 text-center text-xs text-neutral-600">
+                <td colSpan={15} className="px-4 py-8 text-center text-xs text-neutral-600">
                   Belum ada data hotel
                 </td>
               </tr>
@@ -736,8 +747,9 @@ export function ManifestHotel({ tripId }: Props) {
                   {(item.peserta_names ?? []).join(", ") || "—"}
                 </td>
                 <td className="px-3 py-2 text-xs text-neutral-400 whitespace-nowrap">{fmtJpy(item.harga_jpy)}</td>
-                <td className="px-3 py-2 text-xs text-teal-400 whitespace-nowrap">{fmtIdr(item.harga_idr)}</td>
-                <td className="px-3 py-2 text-xs text-teal-300 whitespace-nowrap font-medium">{fmtIdr(item.total_idr)}</td>
+                <td className="px-3 py-2 text-xs text-neutral-400 whitespace-nowrap">{fmtIdr(item.harga_idr)}</td>
+                <td className="px-3 py-2 text-xs text-teal-400 whitespace-nowrap font-medium">{fmtIdr(item.total_idr)}</td>
+                <td className="px-3 py-2 text-xs text-green-400 whitespace-nowrap font-medium">{fmtIdr(item.harga_jual_idr)}</td>
                 <td className="px-3 py-2 text-xs text-neutral-400 whitespace-nowrap">{fmtDate(item.waktu_pembayaran)}</td>
                 <td className="px-3 py-2 text-xs text-neutral-500">{item.kurs ?? "—"}</td>
                 <td className="px-3 py-2">

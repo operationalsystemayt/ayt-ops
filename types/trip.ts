@@ -158,6 +158,7 @@ export interface ManifestHotel {
   harga_jpy?: number;
   harga_idr?: number;
   total_idr?: number;
+  harga_jual_idr?: number;
   kurs?: number;
   peserta_ids: string[];
   peserta_names: string[];
@@ -232,8 +233,10 @@ export interface ManifestOptionalTour {
   nama_tour: string;
   kategori?: string;
   tier?: string;
+  tanggal?: string;
   harga_jual_idr?: number;
-  harga_beli_jpy?: number;
+  harga_jual_kurs?: number;
+  harga_beli_jpy?: number;  // repurposed as harga_beli_kurs
   harga_beli_idr?: number;
   kurs?: number;
   peserta_ids: string[];
@@ -245,10 +248,44 @@ export interface ManifestOptionalTour {
 
 export interface OptionalTourOCRResult {
   nama_tour: string;
+  tanggal: string;
+  harga_beli_kurs: number;
+  kurs: number;
+  peserta_names: string[];
+  // Legacy fields kept for backward compat
   tier: string;
   harga_beli_jpy: number;
   admission_date: string;
   qty: number;
+}
+
+export interface TripItinerary {
+  id: string;
+  trip_id: string;
+  file_name: string;
+  drive_file_id: string;
+  drive_view_url: string;
+  mime_type: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TripAsuransi {
+  id: string;
+  trip_id: string;
+  nama_polis?: string;
+  kode_booking?: string;
+  nama_pemegang?: string;
+  periode_mulai?: string;
+  periode_selesai?: string;
+  file_name?: string;
+  drive_file_id?: string;
+  drive_view_url?: string;
+  mime_type?: string;
+  peserta_ids: string[];
+  peserta_names: string[];
+  created_at: string;
+  updated_at: string;
 }
 
 export interface LabaResult {

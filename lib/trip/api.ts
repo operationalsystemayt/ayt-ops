@@ -5,6 +5,8 @@ import type {
   ManifestHotel, HotelOCRResult,
   ManifestTransportasi, TransportasiOCRResult,
   ManifestOptionalTour, OptionalTourOCRResult,
+  TripItinerary,
+  TripAsuransi,
 } from "@/types/trip";
 
 const BASE = process.env.NEXT_PUBLIC_TRIP_API_URL ?? "http://localhost:8080";
@@ -251,20 +253,32 @@ export const transportasiApi = {
 export const optionalTourApi = {
   list: (tripId: string) =>
     req<ManifestOptionalTour[]>(`/api/trips/${tripId}/optional-tour`),
-  create: (tripId: string, body: Partial<ManifestOptionalTour>) =>
-    req<ManifestOptionalTour>(`/api/trips/${tripId}/optional-tour`, {
-      method: "POST", body: JSON.stringify(body),
-    }),
+  create: (tripId: string, fd: FormData) =>
+    reqForm<ManifestOptionalTour>(`${BASE}/api/trips/${tripId}/optional-tour`, fd),
   update: (tripId: string, oid: string, body: Partial<ManifestOptionalTour>) =>
     req<void>(`/api/trips/${tripId}/optional-tour/${oid}`, {
       method: "PUT", body: JSON.stringify(body),
     }),
   delete: (tripId: string, oid: string) =>
     req<void>(`/api/trips/${tripId}/optional-tour/${oid}`, { method: "DELETE" }),
-  uploadTiket: (tripId: string, fd: FormData) =>
-    reqForm<{ drive_file_id: string; drive_view_url: string }>(
-      `${BASE}/api/trips/${tripId}/optional-tour/upload-tiket`, fd,
-    ),
+  replaceFile: async (tripId: string, oid: string, fd: FormData): Promise<ManifestOptionalTour> => {
+    const url = `${BASE}/api/trips/${tripId}/optional-tour/${oid}/tiket`;
+    console.debug(`[API] PUT (form) ${url}`);
+    let res: Response;
+    try {
+      res = await fetch(url, { method: "PUT", body: fd });
+    } catch (e: any) {
+      console.error(`[API] network error — PUT ${url}:`, e.message);
+      throw new Error(`Network error: cannot reach ${BASE} — is the Go backend running?`);
+    }
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      const msg = (body as any).error ?? `HTTP ${res.status}`;
+      console.error(`[API] ${res.status} PUT ${url} →`, msg);
+      throw new Error(msg);
+    }
+    return res.json();
+  },
   ocrTiket: (tripId: string, fd: FormData) =>
     reqForm<OptionalTourOCRResult>(
       `${BASE}/api/trips/${tripId}/optional-tour/ocr-tiket`, fd,
@@ -337,6 +351,58 @@ export const visaApi = {
     ),
 };
 
+// ── Itinerary ─────────────────────────────────────────────────────────────────
+export const itineraryApi = {
+  list: (tripId: string) =>
+    req<TripItinerary[]>(`/api/trips/${tripId}/itinerary`),
+
+  upload: (tripId: string, fd: FormData) =>
+    reqForm<TripItinerary>(`${BASE}/api/trips/${tripId}/itinerary`, fd),
+
+  replace: async (tripId: string, iid: string, fd: FormData): Promise<TripItinerary> => {
+    const url = `${BASE}/api/trips/${tripId}/itinerary/${iid}`;
+    console.debug(`[API] PUT (form) ${url}`);
+    let res: Response;
+    try {
+      res = await fetch(url, { method: "PUT", body: fd });
+    } catch (e: any) {
+      console.error(`[API] network error — PUT ${url}:`, e.message);
+      throw new Error(`Network error: cannot reach ${BASE} — is the Go backend running?`);
+    }
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      const msg = (body as any).error ?? `HTTP ${res.status}`;
+      console.error(`[API] ${res.status} PUT ${url} →`, msg);
+      throw new Error(msg);
+    }
+    return res.json();
+  },
+
+  delete: (tripId: string, iid: string) =>
+    req<void>(`/api/trips/${tripId}/itinerary/${iid}`, { method: "DELETE" }),
+
+  exportZip: async (tripId: string): Promise<void> => {
+    const url = `${BASE}/api/trips/${tripId}/itinerary/export-zip`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const blob = await res.blob();
+    const disposition = res.headers.get("Content-Disposition") ?? "";
+    const match = disposition.match(/filename="([^"]+)"/);
+    const filename = match ? match[1] : `itinerary.zip`;
+    const objUrl = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = objUrl;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(objUrl);
+  },
+
+  uploadZipToDrive: (tripId: string) =>
+    req<{ file_name: string; drive_view_url: string }>(
+      `/api/trips/${tripId}/itinerary/upload-zip`, { method: "POST" },
+    ),
+};
+
 // ── Payments ───────────────────────────────────────────────────────────────────
 export const paymentsApi = {
   list: (tripId: string) => req<TripPayment[]>(`/api/trips/${tripId}/payments`),
@@ -363,6 +429,88 @@ export const paymentsApi = {
     req<{ file_name: string; drive_view_url: string }>(
       `/api/trips/${tripId}/payments/upload-csv`, { method: "POST" },
     ),
+};
+
+// ── Asuransi ──────────────────────────────────────────────────────────────────
+export const asuransiApi = {
+  list: (tripId: string) =>
+    req<TripAsuransi[]>(`/api/trips/${tripId}/asuransi`),
+
+  create: (tripId: string, fd: FormData) =>
+    reqForm<TripAsuransi>(`${BASE}/api/trips/${tripId}/asuransi`, fd),
+
+  update: (tripId: string, aid: string, body: Partial<TripAsuransi>) =>
+    req<void>(`/api/trips/${tripId}/asuransi/${aid}`, {
+      method: "PUT", body: JSON.stringify(body),
+    }),
+
+  replaceFile: async (tripId: string, aid: string, fd: FormData): Promise<{ file_name: string; drive_file_id: string; drive_view_url: string; mime_type: string }> => {
+    const url = `${BASE}/api/trips/${tripId}/asuransi/${aid}/file`;
+    console.debug(`[API] PUT (form) ${url}`);
+    let res: Response;
+    try {
+      res = await fetch(url, { method: "PUT", body: fd });
+    } catch (e: any) {
+      console.error(`[API] network error — PUT ${url}:`, e.message);
+      throw new Error(`Network error: cannot reach ${BASE} — is the Go backend running?`);
+    }
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      const msg = (body as any).error ?? `HTTP ${res.status}`;
+      console.error(`[API] ${res.status} PUT ${url} →`, msg);
+      throw new Error(msg);
+    }
+    return res.json();
+  },
+
+  delete: (tripId: string, aid: string) =>
+    req<void>(`/api/trips/${tripId}/asuransi/${aid}`, { method: "DELETE" }),
+
+  exportZip: async (tripId: string): Promise<void> => {
+    const url = `${BASE}/api/trips/${tripId}/asuransi/export-zip`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const blob = await res.blob();
+    const disposition = res.headers.get("Content-Disposition") ?? "";
+    const match = disposition.match(/filename="([^"]+)"/);
+    const filename = match ? match[1] : `asuransi.zip`;
+    const objUrl = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = objUrl;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(objUrl);
+  },
+
+  uploadZipToDrive: (tripId: string) =>
+    req<{ file_name: string; drive_view_url: string }>(
+      `/api/trips/${tripId}/asuransi/upload-zip`, { method: "POST" },
+    ),
+};
+
+export const rabRealisasiApi = {
+  getState: (tripId: string) =>
+    req<unknown>(`/api/trips/${tripId}/rab-realisasi`),
+
+  saveState: (tripId: string, state: unknown) =>
+    req<{ status: string }>(`/api/trips/${tripId}/rab-realisasi`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(state),
+    }),
+
+  uploadCsvToDrive: async (tripId: string, csvContent: string): Promise<{ file_name: string; drive_view_url: string }> => {
+    const res = await fetch(`${BASE}/api/trips/${tripId}/rab-realisasi/upload-csv`, {
+      method: "POST",
+      headers: { "Content-Type": "text/csv; charset=utf-8" },
+      body: csvContent,
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error((body as any).error ?? `HTTP ${res.status}`);
+    }
+    return res.json();
+  },
 };
 
 // ── Misc ───────────────────────────────────────────────────────────────────────

@@ -2,16 +2,16 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { tripApi } from "@/lib/trip/api";
-import { rabDbApi } from "@/lib/rab/dbApi";
 import { rabStorage } from "@/lib/rab/storage";
 import { NumericInput, Button, FormField, SectionHeader } from "@/components/ui";
-import type { RabMasterSummary } from "@/lib/rab/dbApi";
+import type { RabMaster } from "@/types/rab";
+import { n } from "@/lib/rab/calculations";
 
 export default function NewTripPage() {
   const router = useRouter();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [rabList, setRabList] = useState<RabMasterSummary[]>([]);
+  const [rabList, setRabList] = useState<RabMaster[]>([]);
   const [rabLoading, setRabLoading] = useState(true);
 
   const [form, setForm] = useState({
@@ -29,25 +29,12 @@ export default function NewTripPage() {
 
   const set = (k: keyof typeof form) => (v: any) => setForm((f) => ({ ...f, [k]: v }));
 
-  // Load RAB list from Go backend; auto-sync from localStorage if DB is empty
+  // Load RAB list — backend-first (rabStorage handles fallback to localStorage)
   useEffect(() => {
-    (async () => {
-      try {
-        let list = await rabDbApi.list();
-        if (list.length === 0) {
-          const localRabs = await rabStorage.list();
-          if (localRabs.length > 0) {
-            await Promise.all(localRabs.map((r) => rabDbApi.upsert(r).catch(() => {})));
-            list = await rabDbApi.list();
-          }
-        }
-        setRabList(list);
-      } catch {
-        setRabList([]);
-      } finally {
-        setRabLoading(false);
-      }
-    })();
+    rabStorage.list()
+      .then(setRabList)
+      .catch(() => setRabList([]))
+      .finally(() => setRabLoading(false));
   }, []);
 
   const handleRabSelect = (id: string) => {
@@ -58,8 +45,8 @@ export default function NewTripPage() {
     setForm((f) => ({
       ...f,
       rab_master_id: id,
-      jumlah_hari: rab.jumlah_hari || f.jumlah_hari,
-      total_pax: rab.jumlah_pax || f.total_pax,
+      jumlah_hari:  n(rab.header.jumlah_hari)  || f.jumlah_hari,
+      total_pax:    n(rab.header.jumlah_pax)   || f.total_pax,
     }));
   };
 
@@ -71,11 +58,11 @@ export default function NewTripPage() {
     setError(null);
     try {
       const trip = await tripApi.create({
-        nama_trip: form.nama_trip,
-        rab_master_id: form.rab_master_id || undefined,
-        tgl_berangkat: form.tgl_berangkat,
+        nama_trip:      form.nama_trip,
+        rab_master_id:  form.rab_master_id || undefined,
+        tgl_berangkat:  form.tgl_berangkat,
         tgl_pulang,
-        total_pax: form.total_pax,
+        total_pax:      form.total_pax,
       });
       router.push(`/trip/${trip.id}`);
     } catch (e: any) {
@@ -86,6 +73,8 @@ export default function NewTripPage() {
   };
 
   const selectedRab = rabList.find((r) => r.id === form.rab_master_id);
+  const kurs       = selectedRab ? n(selectedRab.header.kurs)       : 0;
+  const hargaJual  = selectedRab ? n(selectedRab.harga_jual as any) : 0;
 
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-100">
@@ -104,7 +93,7 @@ export default function NewTripPage() {
                 value={form.nama_trip}
                 onChange={(e) => set("nama_trip")(e.target.value)}
                 placeholder="cth: JPN Winter Golden Route 6D5N"
-                className="w-full rounded-lg bg-neutral-900 border border-neutral-700 px-3 py-2 text-sm text-neutral-100 placeholder-neutral-600 focus:outline-none focus:border-teal-500 transition-colors"
+                className="w-full rounded-lg bg-neutral-900 border border-neutral-700 px-3 py-2 text-sm text-neutral-100 placeholder-neutral-600 focus:outline-none focus:border-[#37bea3] transition-colors"
               />
             </FormField>
 
@@ -113,24 +102,24 @@ export default function NewTripPage() {
                 value={form.rab_master_id}
                 onChange={(e) => handleRabSelect(e.target.value)}
                 disabled={rabLoading}
-                className="w-full rounded-lg bg-neutral-900 border border-neutral-700 px-3 py-2 text-sm text-neutral-100 focus:outline-none focus:border-teal-500 transition-colors cursor-pointer disabled:opacity-50"
+                className="w-full rounded-lg bg-neutral-900 border border-neutral-700 px-3 py-2 text-sm text-neutral-100 focus:outline-none focus:border-[#37bea3] transition-colors cursor-pointer disabled:opacity-50"
               >
                 <option value="">{rabLoading ? "Memuat..." : "— Pilih RAB Master (opsional) —"}</option>
                 {rabList.map((r) => (
                   <option key={r.id} value={r.id}>
-                    {r.nama} · {r.jumlah_pax} pax · {r.jumlah_hari} hari
+                    {r.header.nama} · {n(r.header.jumlah_pax)} pax · {n(r.header.jumlah_hari)} hari
                   </option>
                 ))}
               </select>
               {rabList.length === 0 && !rabLoading && (
                 <p className="text-[10px] text-neutral-600 mt-1">
                   Belum ada RAB. Simpan RAB di halaman{" "}
-                  <a href="/rab" className="text-teal-500 hover:underline">RAB Master</a> terlebih dahulu.
+                  <a href="/rab" className="text-[#37bea3] hover:underline">RAB Master</a> terlebih dahulu.
                 </p>
               )}
               {selectedRab && (
                 <p className="text-[10px] text-neutral-500 mt-1">
-                  Kurs {selectedRab.kurs} · Harga jual {selectedRab.harga_jual > 0 ? `Rp ${selectedRab.harga_jual.toLocaleString("id-ID")}` : "—"}
+                  Kurs {kurs} · Harga jual {hargaJual > 0 ? `Rp ${hargaJual.toLocaleString("id-ID")}` : "—"}
                 </p>
               )}
             </FormField>
@@ -141,7 +130,7 @@ export default function NewTripPage() {
                   type="date"
                   value={form.tgl_berangkat}
                   onChange={(e) => set("tgl_berangkat")(e.target.value)}
-                  className="w-full rounded-lg bg-neutral-900 border border-neutral-700 px-3 py-2 text-sm text-neutral-100 focus:outline-none focus:border-teal-500 transition-colors"
+                  className="w-full rounded-lg bg-neutral-900 border border-neutral-700 px-3 py-2 text-sm text-neutral-100 focus:outline-none focus:border-[#37bea3] transition-colors"
                 />
               </FormField>
               <FormField label="Jumlah Hari">
@@ -151,7 +140,7 @@ export default function NewTripPage() {
 
             {tgl_pulang && (
               <p className="text-xs text-neutral-500">
-                Tanggal pulang: <span className="text-teal-400">{tgl_pulang}</span>
+                Tanggal pulang: <span style={{ color: "var(--ayt-teal)" }}>{tgl_pulang}</span>
               </p>
             )}
 

@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
 import { keberangkatanApi, pesertaApi } from "@/lib/trip/api";
-import { Button } from "@/components/ui";
+import { Button, FormattedInput } from "@/components/ui";
 import { calcAge } from "@/types/trip";
 import type { ManifestKeberangkatan, ManifestPeserta } from "@/types/trip";
 import { clsx } from "clsx";
@@ -36,6 +36,7 @@ interface PesertaRow {
 interface BookingGroupForm {
   _key: string;
   kode_booking: string;
+  unit: string;
   rows: PesertaRow[];
 }
 
@@ -67,7 +68,7 @@ const blankFlight = (): FlightInfoForm => ({
   tgl_pemesanan: "", limit_pembayaran: "", pemesanan: "", agent: "", harga_tiket: "", klien: "",
 });
 const newRow = (): PesertaRow => ({ _key: uid(), no_etiket: "", peserta_id: "" });
-const newGroup = (): BookingGroupForm => ({ _key: uid(), kode_booking: "", rows: [newRow()] });
+const newGroup = (): BookingGroupForm => ({ _key: uid(), kode_booking: "", unit: "", rows: [newRow()] });
 
 // ── Name matching ──────────────────────────────────────────────────────────────
 function matchPesertaName(ocrName: string, list: ManifestPeserta[]): string {
@@ -199,12 +200,11 @@ export function ManifestKeberangkatan({ tripId }: Props) {
         setGroups(ocrGroups.map(bg => ({
           _key: uid(),
           kode_booking: bg.kode_booking,
-          tgl_pemesanan: "", pemesanan: "", agent: "", limit_pembayaran: "", harga_tiket: "",
+          unit: String(bg.peserta.length),
           rows: bg.peserta.map(p => ({
             _key: uid(),
             no_etiket: p.no_etiket,
             peserta_id: matchPesertaName(p.nama, pesertaList),
-            klien: "",
           })),
         })));
       }
@@ -245,7 +245,7 @@ export function ManifestKeberangkatan({ tripId }: Props) {
           const payload: Partial<ManifestKeberangkatan> = {
             ...sharedPayload,
             kode_booking: group.kode_booking || undefined,
-            unit:         group.rows.length,
+            unit:         group.unit ? parseInt(group.unit) : group.rows.length,
             peserta_id:   row.peserta_id || undefined,
             no_etiket:    row.no_etiket  || undefined,
           };
@@ -307,6 +307,7 @@ export function ManifestKeberangkatan({ tripId }: Props) {
     setGroups([{
       _key: uid(),
       kode_booking: k.kode_booking ?? "",
+      unit: k.unit != null ? String(k.unit) : "",
       rows: [{ _key: uid(), id: k.id, no_etiket: k.no_etiket ?? "", peserta_id: k.peserta_id ?? "" }],
     }]);
     if (k.tiket_drive_file_id) setDriveFileId(k.tiket_drive_file_id);
@@ -324,6 +325,8 @@ export function ManifestKeberangkatan({ tripId }: Props) {
       {/* ── Toolbar ─────────────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-neutral-800 flex-wrap gap-2">
         <span className="text-xs text-neutral-400">{list.length} tiket</span>
+        <span className="text-xs text-neutral-400">Total harga tiket: {fmtCurrency(list.reduce((sum, k) => sum + (k.harga_tiket ?? 0) / Math.max(k.unit ?? 1, 1), 0))}</span>
+        <span className="text-xs text-neutral-400">Rata rata per pax: {fmtCurrency(list.reduce((sum, k) => sum + (k.harga_tiket ?? 0) / Math.max(k.unit ?? 1, 1), 0)/list.length)}</span>
         <div className="flex items-center gap-2 flex-wrap">
           <input ref={tiketRef} type="file" accept=".pdf,application/pdf" className="hidden"
             onChange={e => { const f = e.target.files?.[0]; if (f) handleSelectTiket(f); e.target.value = ""; }} />
@@ -428,11 +431,11 @@ export function ManifestKeberangkatan({ tripId }: Props) {
                   </div>
                   <div>
                     <label className={lbl}>Bagasi Kabin (kg)</label>
-                    <input type="number" value={flight.bagasi_kabin_kg} onChange={e => setF("bagasi_kabin_kg")(e.target.value)} placeholder="7" className={inp} />
+                    <FormattedInput value={flight.bagasi_kabin_kg} onChange={setF("bagasi_kabin_kg")} placeholder="7" className={inp} />
                   </div>
                   <div>
                     <label className={lbl}>Bagasi Check-in (kg)</label>
-                    <input type="number" value={flight.bagasi_checkin_kg} onChange={e => setF("bagasi_checkin_kg")(e.target.value)} placeholder="30" className={inp} />
+                    <FormattedInput value={flight.bagasi_checkin_kg} onChange={setF("bagasi_checkin_kg")} placeholder="30" className={inp} />
                   </div>
 
                   {/* Pemesanan fields — shared across all kode booking */}
@@ -454,7 +457,7 @@ export function ManifestKeberangkatan({ tripId }: Props) {
                   </div>
                   <div>
                     <label className={lbl}>Harga Tiket (Rp)</label>
-                    <input type="number" value={flight.harga_tiket} onChange={e => setF("harga_tiket")(e.target.value)} placeholder="0" className={inp} />
+                    <FormattedInput value={flight.harga_tiket} onChange={setF("harga_tiket")} placeholder="0" className={inp} />
                   </div>
                   <div>
                     <label className={lbl}>Klien</label>
@@ -476,6 +479,15 @@ export function ManifestKeberangkatan({ tripId }: Props) {
                         onChange={e => setGroup(gi, { kode_booking: e.target.value })}
                         placeholder="PNR / kode booking"
                         className={clsx(inp, "w-36 font-mono")} />
+                      <div className="flex items-center gap-1">
+                        <label className="text-[10px] text-neutral-500 whitespace-nowrap">Unit</label>
+                        <FormattedInput
+                          value={group.unit}
+                          onChange={v => setGroup(gi, { unit: v })}
+                          placeholder={String(group.rows.length)}
+                          className={clsx(inp, "w-16")}
+                        />
+                      </div>
                       <span className="text-[10px] text-neutral-600">{group.rows.length} peserta</span>
                       {groups.length > 1 && (
                         <button onClick={() => removeGroup(gi)}
@@ -576,14 +588,14 @@ export function ManifestKeberangkatan({ tripId }: Props) {
           <thead>
             <tr className="border-b border-neutral-800">
               {["No","Tgl Pesan","Pemesan","Agent","Limit Bayar","Harga Tiket",
-                "Kode Booking","E-Tiket No","Title","Nama","Klien",""].map((h, i) => (
+                "Kode Booking","Unit","E-Tiket No","Title","Nama","Klien",""].map((h, i) => (
                 <th key={i} className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wider text-neutral-600 whitespace-nowrap">{h}</th>
               ))}
             </tr>
           </thead>
           <tbody className="divide-y divide-neutral-800/50">
             {list.length === 0 && (
-              <tr><td colSpan={12} className="px-4 py-8 text-center text-xs text-neutral-600">Belum ada data tiket</td></tr>
+              <tr><td colSpan={13} className="px-4 py-8 text-center text-xs text-neutral-600">Belum ada data tiket</td></tr>
             )}
             {list.map((k, i) => (
               <tr key={k.id} className="group hover:bg-white/[0.02] transition-colors">
@@ -592,8 +604,11 @@ export function ManifestKeberangkatan({ tripId }: Props) {
                 <td className="px-3 py-2 text-xs text-neutral-400">{k.pemesanan ?? "—"}</td>
                 <td className="px-3 py-2 text-xs text-neutral-400">{k.agent ?? "—"}</td>
                 <td className="px-3 py-2 text-xs text-neutral-400 whitespace-nowrap">{fmtDate(k.limit_pembayaran)}</td>
-                <td className="px-3 py-2 text-xs text-teal-400 whitespace-nowrap">{fmtCurrency(k.harga_tiket)}</td>
+                <td className="px-3 py-2 text-xs text-teal-400 whitespace-nowrap">
+                  {fmtCurrency(k.harga_tiket != null && k.unit ? k.harga_tiket / k.unit : k.harga_tiket)}
+                </td>
                 <td className="px-3 py-2 text-xs font-mono text-neutral-300">{k.kode_booking ?? "—"}</td>
+                <td className="px-3 py-2 text-xs text-neutral-400 text-center">{k.unit ?? "—"}</td>
                 <td className="px-3 py-2 text-xs font-mono text-neutral-400 whitespace-nowrap">{k.no_etiket ?? "—"}</td>
                 <td className="px-3 py-2 text-xs text-neutral-400">{k.title ?? "—"}</td>
                 <td className="px-3 py-2 text-xs font-medium text-neutral-100 whitespace-nowrap">{k.nama_lengkap ?? "—"}</td>

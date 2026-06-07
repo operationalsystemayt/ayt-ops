@@ -30,7 +30,7 @@ func (h *Handler) ListHotel(w http.ResponseWriter, r *http.Request) {
 			mh.rute, mh.nama_hotel, mh.nama_agent, mh.confirmation_number,
 			mh.tgl_stay_mulai::text, mh.tgl_stay_selesai::text,
 			mh.jumlah_room, mh.tipe_room::text, mh.jumlah_malam,
-			mh.harga_jpy, mh.harga_idr, mh.total_idr, mh.kurs,
+			mh.harga_jpy, mh.harga_idr, mh.total_idr, mh.harga_jual_idr, mh.kurs,
 			COALESCE(
 				(SELECT string_agg(mp.nama_lengkap, ', ' ORDER BY mp.nama_lengkap)
 				 FROM manifest_peserta mp
@@ -65,7 +65,7 @@ func (h *Handler) ListHotel(w http.ResponseWriter, r *http.Request) {
 			&item.Rute, &item.NamaHotel, &item.NamaAgent, &item.ConfirmationNumber,
 			&item.TglStayMulai, &item.TglStaySelesai,
 			&item.JumlahRoom, &item.TipeRoom, &item.JumlahMalam,
-			&item.HargaJpy, &item.HargaIdr, &item.TotalIdr, &item.Kurs,
+			&item.HargaJpy, &item.HargaIdr, &item.TotalIdr, &item.HargaJualIdr, &item.Kurs,
 			&pesertaNamesStr,
 			&pesertaIDsStr,
 			&item.NotaDriveFileId,
@@ -105,6 +105,7 @@ func (h *Handler) CreateHotel(w http.ResponseWriter, r *http.Request) {
 		Kurs               *float64 `json:"kurs"`
 		HargaIdr           *float64 `json:"harga_idr"`
 		TotalIdr           *float64 `json:"total_idr"`
+		HargaJualIdr       *float64 `json:"harga_jual_idr"`
 		PesertaIds         []string `json:"peserta_ids"`
 		NotaDriveFileId    *string  `json:"nota_drive_file_id"`
 		WaktuPembayaran    *string  `json:"waktu_pembayaran"`
@@ -149,33 +150,33 @@ func (h *Handler) CreateHotel(w http.ResponseWriter, r *http.Request) {
 		INSERT INTO manifest_hotel
 		  (trip_id, rute, nama_hotel, nama_agent, confirmation_number,
 		   tgl_stay_mulai, tgl_stay_selesai, jumlah_room, tipe_room, jumlah_malam,
-		   harga_jpy, harga_idr, total_idr, kurs,
+		   harga_jpy, harga_idr, total_idr, harga_jual_idr, kurs,
 		   peserta_ids, nota_drive_file_id, payment_schedule_id)
 		VALUES
 		  ($1::uuid, $2, $3, $4, $5,
 		   $6::date, $7::date, $8, $9::room_type, $10,
-		   $11, $12, $13, $14,
-		   %s, $15, $16::uuid)
+		   $11, $12, $13, $14, $15,
+		   %s, $16, $17::uuid)
 		RETURNING
 			id::text, trip_id::text,
 			rute, nama_hotel, nama_agent, confirmation_number,
 			tgl_stay_mulai::text, tgl_stay_selesai::text,
 			jumlah_room, tipe_room::text, jumlah_malam,
-			harga_jpy, harga_idr, total_idr, kurs,
+			harga_jpy, harga_idr, total_idr, harga_jual_idr, kurs,
 			nota_drive_file_id,
 			payment_schedule_id::text,
 			created_at, updated_at`,
 		pesertaArrLiteral),
 		tripID, body.Rute, body.NamaHotel, body.NamaAgent, body.ConfirmationNumber,
 		body.TglStayMulai, body.TglStaySelesai, body.JumlahRoom, nilIfEmpty(body.TipeRoom), body.JumlahMalam,
-		body.HargaJpy, body.HargaIdr, body.TotalIdr, body.Kurs,
+		body.HargaJpy, body.HargaIdr, body.TotalIdr, body.HargaJualIdr, body.Kurs,
 		body.NotaDriveFileId, paymentScheduleID,
 	).Scan(
 		&item.ID, &item.TripID,
 		&item.Rute, &item.NamaHotel, &item.NamaAgent, &item.ConfirmationNumber,
 		&item.TglStayMulai, &item.TglStaySelesai,
 		&item.JumlahRoom, &item.TipeRoom, &item.JumlahMalam,
-		&item.HargaJpy, &item.HargaIdr, &item.TotalIdr, &item.Kurs,
+		&item.HargaJpy, &item.HargaIdr, &item.TotalIdr, &item.HargaJualIdr, &item.Kurs,
 		&item.NotaDriveFileId,
 		&item.PaymentScheduleId,
 		&item.CreatedAt, &item.UpdatedAt,
@@ -211,6 +212,7 @@ func (h *Handler) UpdateHotel(w http.ResponseWriter, r *http.Request) {
 		Kurs               *float64 `json:"kurs"`
 		HargaIdr           *float64 `json:"harga_idr"`
 		TotalIdr           *float64 `json:"total_idr"`
+		HargaJualIdr       *float64 `json:"harga_jual_idr"`
 		PesertaIds         []string `json:"peserta_ids"`
 		NotaDriveFileId    *string  `json:"nota_drive_file_id"`
 		WaktuPembayaran    *string  `json:"waktu_pembayaran"`
@@ -269,15 +271,16 @@ func (h *Handler) UpdateHotel(w http.ResponseWriter, r *http.Request) {
 			harga_jpy           = COALESCE($11, harga_jpy),
 			harga_idr           = COALESCE($12, harga_idr),
 			total_idr           = COALESCE($13, total_idr),
-			kurs                = COALESCE($14, kurs),
+			harga_jual_idr      = COALESCE($14, harga_jual_idr),
+			kurs                = COALESCE($15, kurs),
 			peserta_ids         = %s,
-			nota_drive_file_id  = COALESCE($15, nota_drive_file_id),
-			updated_at          = $16
+			nota_drive_file_id  = COALESCE($16, nota_drive_file_id),
+			updated_at          = $17
 		WHERE id = $1::uuid`,
 		pesertaArrLiteral),
 		hid, body.Rute, body.NamaHotel, body.NamaAgent, body.ConfirmationNumber,
 		body.TglStayMulai, body.TglStaySelesai, body.JumlahRoom, nilIfEmpty(body.TipeRoom), body.JumlahMalam,
-		body.HargaJpy, body.HargaIdr, body.TotalIdr, body.Kurs,
+		body.HargaJpy, body.HargaIdr, body.TotalIdr, body.HargaJualIdr, body.Kurs,
 		body.NotaDriveFileId, time.Now(),
 	)
 	if err != nil {

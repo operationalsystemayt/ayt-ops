@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
 import { transportasiApi } from "@/lib/trip/api";
-import { Button } from "@/components/ui";
+import { Button, FormattedInput } from "@/components/ui";
 import type { ManifestTransportasi, TransportasiOCRResult } from "@/types/trip";
 import { clsx } from "clsx";
 
@@ -100,6 +100,7 @@ export function ManifestTransportasi({ tripId }: Props) {
   const [list, setList]       = useState<ManifestTransportasi[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [formMode, setFormMode] = useState<"SHINKANSEN" | "LOKAL">("SHINKANSEN");
 
   // Shared kurs (same for all shinkansen rows, and optionally lokal)
   const [shinKurs, setShinKurs] = useState("");
@@ -381,6 +382,7 @@ export function ManifestTransportasi({ tripId }: Props) {
   // Start edit: pre-fill from existing rows
   const startEdit = (item: ManifestTransportasi) => {
     resetForm();
+    setFormMode(item.jenis === "SHINKANSEN" ? "SHINKANSEN" : "LOKAL");
     if (item.jenis === "SHINKANSEN") {
       setShinRows(prev => prev.map(r =>
         r.kategori_usia === item.kategori_usia
@@ -522,16 +524,44 @@ export function ManifestTransportasi({ tripId }: Props) {
                 </div>
               )}
 
+              {/* ── Mode toggle ───────────────────────────────────────────── */}
+              <div className="flex items-center gap-1 mb-5 bg-neutral-900 border border-neutral-700 rounded-lg p-1 w-fit">
+                <button
+                  type="button"
+                  onClick={() => setFormMode("SHINKANSEN")}
+                  className={clsx(
+                    "px-4 py-1.5 rounded-md text-xs font-medium transition-colors cursor-pointer",
+                    formMode === "SHINKANSEN"
+                      ? "bg-teal-700 text-white"
+                      : "text-neutral-400 hover:text-neutral-200"
+                  )}
+                >
+                  Shinkansen
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFormMode("LOKAL")}
+                  className={clsx(
+                    "px-4 py-1.5 rounded-md text-xs font-medium transition-colors cursor-pointer",
+                    formMode === "LOKAL"
+                      ? "bg-teal-700 text-white"
+                      : "text-neutral-400 hover:text-neutral-200"
+                  )}
+                >
+                  Transportasi Lokal
+                </button>
+              </div>
+
               {/* ── SHINKANSEN section ─────────────────────────────────────── */}
+              {formMode === "SHINKANSEN" && (
               <div className="mb-6">
                 <div className="flex items-center gap-4 mb-3">
                   <p className="text-[10px] font-semibold uppercase tracking-widest text-neutral-400">SHINKANSEN</p>
                   <div className="flex items-center gap-2">
                     <label className={lbl + " mb-0 whitespace-nowrap"}>Kurs (shared)</label>
-                    <input
-                      type="number"
+                    <FormattedInput
                       value={shinKurs}
-                      onChange={e => handleShinKursChange(e.target.value)}
+                      onChange={handleShinKursChange}
                       placeholder="111"
                       className={clsx(inp, "w-24")}
                     />
@@ -555,24 +585,21 @@ export function ManifestTransportasi({ tripId }: Props) {
                         placeholder="aturan harga"
                         className={inp}
                       />
-                      <input
-                        type="number"
+                      <FormattedInput
                         value={row.qty}
-                        onChange={e => handleShinChange(i, "qty", e.target.value)}
+                        onChange={v => handleShinChange(i, "qty", v)}
                         placeholder="0"
                         className={inp}
                       />
-                      <input
-                        type="number"
+                      <FormattedInput
                         value={row.harga_jpy}
-                        onChange={e => handleShinChange(i, "harga_jpy", e.target.value)}
-                        placeholder="¥0"
+                        onChange={v => handleShinChange(i, "harga_jpy", v)}
+                        placeholder="0"
                         className={inp}
                       />
-                      <input
-                        type="number"
+                      <FormattedInput
                         value={row.harga_idr}
-                        onChange={e => setShin(i, { harga_idr: e.target.value })}
+                        onChange={v => setShin(i, { harga_idr: v })}
                         placeholder="auto"
                         className={inp}
                       />
@@ -586,18 +613,19 @@ export function ManifestTransportasi({ tripId }: Props) {
                   ))}
                 </div>
               </div>
+              )}
 
               {/* ── TRANSPORTASI LOKAL section ─────────────────────────────── */}
+              {formMode === "LOKAL" && (
               <div>
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-4">
                     <p className="text-[10px] font-semibold uppercase tracking-widest text-neutral-400">TRANSPORTASI LOKAL</p>
                     <div className="flex items-center gap-2">
                       <label className={lbl + " mb-0 whitespace-nowrap"}>Kurs (shared)</label>
-                      <input
-                        type="number"
+                      <FormattedInput
                         value={lokalKurs}
-                        onChange={e => handleLokalKursChange(e.target.value)}
+                        onChange={handleLokalKursChange}
                         placeholder="111"
                         className={clsx(inp, "w-24")}
                       />
@@ -649,10 +677,9 @@ export function ManifestTransportasi({ tripId }: Props) {
                       <div className="flex items-start gap-2 mt-2 flex-wrap">
                         <div className="w-28">
                           <label className={lbl}>Harga JPY (¥)</label>
-                          <input
-                            type="number"
+                          <FormattedInput
                             value={row.harga_jpy}
-                            onChange={e => handleLokalChange(i, "harga_jpy", e.target.value)}
+                            onChange={v => handleLokalChange(i, "harga_jpy", v)}
                             placeholder="49000"
                             className={inp}
                           />
@@ -668,10 +695,9 @@ export function ManifestTransportasi({ tripId }: Props) {
                         </div>
                         <div className="w-32">
                           <label className={lbl}>Total IDR (auto)</label>
-                          <input
-                            type="number"
+                          <FormattedInput
                             value={row.harga_idr}
-                            onChange={e => setLokal(i, { harga_idr: e.target.value })}
+                            onChange={v => setLokal(i, { harga_idr: v })}
                             placeholder="auto"
                             className={inp}
                           />
@@ -704,6 +730,7 @@ export function ManifestTransportasi({ tripId }: Props) {
                   + Tambah Trip Lokal
                 </button>
               </div>
+              )}
 
               {/* Error/info (non-OCR) */}
               {msg && !notaFile && (

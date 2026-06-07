@@ -100,12 +100,34 @@ func New(db *pgxpool.Pool) http.Handler {
 			// Manifest optional tour
 			r.Get("/optional-tour", h.ListOptionalTour)
 			r.Post("/optional-tour", h.CreateOptionalTour)
-			r.Post("/optional-tour/upload-tiket", h.UploadTiketOptional)         // static before {oid}
 			r.Post("/optional-tour/ocr-tiket", h.OcrTiketOptional)               // static before {oid}
 			r.Get("/optional-tour/export-csv", h.ExportOptionalTourCSV)           // static before {oid}
 			r.Post("/optional-tour/upload-csv", h.UploadOptionalTourCSV)          // static before {oid}
+			r.Put("/optional-tour/{oid}/tiket", h.ReplaceOptionalTiket)           // before {oid} plain
 			r.Put("/optional-tour/{oid}", h.UpdateOptionalTour)
 			r.Delete("/optional-tour/{oid}", h.DeleteOptionalTour)
+
+			// Itinerary
+			r.Get("/itinerary", h.ListItinerary)
+			r.Post("/itinerary", h.UploadItinerary)
+			r.Get("/itinerary/export-zip", h.ExportZipItinerary)   // static before {iid}
+			r.Post("/itinerary/upload-zip", h.UploadZipItinerary)  // static before {iid}
+			r.Put("/itinerary/{iid}", h.ReplaceItinerary)
+			r.Delete("/itinerary/{iid}", h.DeleteItinerary)
+
+			// RAB vs Realisasi
+			r.Get("/rab-realisasi", h.GetRabRealisasiState)
+			r.Post("/rab-realisasi", h.SaveRabRealisasiState)
+			r.Post("/rab-realisasi/upload-csv", h.UploadRabRealisasiCSV)
+
+			// Asuransi
+			r.Get("/asuransi", h.ListAsuransi)
+			r.Post("/asuransi", h.CreateAsuransi)
+			r.Get("/asuransi/export-zip", h.ExportZipAsuransi)   // static before {aid}
+			r.Post("/asuransi/upload-zip", h.UploadZipAsuransi)  // static before {aid}
+			r.Put("/asuransi/{aid}", h.UpdateAsuransi)
+			r.Put("/asuransi/{aid}/file", h.ReplaceAsuransiFile)
+			r.Delete("/asuransi/{aid}", h.DeleteAsuransi)
 
 			// Laba
 			r.Get("/laba", h.GetLaba)
@@ -115,6 +137,7 @@ func New(db *pgxpool.Pool) http.Handler {
 	// RAB Master
 	r.Get("/api/rab", h.ListRab)
 	r.Post("/api/rab", h.UpsertRab)
+	r.Get("/api/rab/{id}", h.GetRab)
 	r.Delete("/api/rab/{id}", h.DeleteRab)
 
 	// OCR

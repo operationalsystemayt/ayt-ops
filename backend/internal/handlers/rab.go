@@ -20,27 +20,40 @@ type RabSummary struct {
 	UpdatedAt   time.Time `json:"updated_at"`
 }
 
+// ListRab returns full RabMaster objects from the JSONB `data` column.
 func (h *Handler) ListRab(w http.ResponseWriter, r *http.Request) {
-	rows, err := h.DB.Query(r.Context(), `
-		SELECT id, nama, COALESCE(jumlah_pax,0), COALESCE(jumlah_hari,0),
-		       COALESCE(jumlah_malam,0), COALESCE(jumlah_tl,0),
-		       COALESCE(kurs,1), COALESCE(harga_jual,0), updated_at
-		FROM rab_master ORDER BY updated_at DESC`)
+	rows, err := h.DB.Query(r.Context(),
+		`SELECT data FROM rab_master ORDER BY updated_at DESC`)
 	if err != nil {
 		jsonErr(w, 500, err.Error()); return
 	}
 	defer rows.Close()
 
-	list := []RabSummary{}
+	result := []json.RawMessage{}
 	for rows.Next() {
-		var s RabSummary
-		if err := rows.Scan(&s.ID, &s.Nama, &s.JumlahPax, &s.JumlahHari,
-			&s.JumlahMalam, &s.JumlahTL, &s.Kurs, &s.HargaJual, &s.UpdatedAt); err != nil {
-			jsonErr(w, 500, err.Error()); return
+		var d []byte
+		if err := rows.Scan(&d); err != nil {
+			continue
 		}
-		list = append(list, s)
+		result = append(result, json.RawMessage(d))
 	}
-	jsonOK(w, list)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(result)
+}
+
+// GetRab returns a single full RabMaster from the JSONB `data` column.
+func (h *Handler) GetRab(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	var d []byte
+	err := h.DB.QueryRow(r.Context(),
+		`SELECT data FROM rab_master WHERE id = $1`, id,
+	).Scan(&d)
+	if err != nil {
+		jsonErr(w, 404, "RAB not found"); return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(d)
 }
 
 func (h *Handler) UpsertRab(w http.ResponseWriter, r *http.Request) {

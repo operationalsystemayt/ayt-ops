@@ -367,6 +367,83 @@ export function ManifestInti({ tripId, tripName, tglBerangkat, tglPulang }: Prop
         <div className="p-4 border-b border-neutral-800 bg-neutral-950/40">
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
 
+            {/* Upload Paspor + KTP side by side */}
+            <div className="col-span-full grid grid-cols-2 gap-3">
+            <div>
+              <label className={lbl}>Upload Paspor</label>
+              <div className="flex items-center gap-2 flex-wrap">
+                <input ref={pasporRef} type="file" accept="image/*" className="hidden"
+                  onChange={(e) => setPassportFile(e.target.files?.[0] ?? null)} />
+                <button type="button" onClick={() => pasporRef.current?.click()}
+                  className="rounded-lg border border-dashed border-neutral-600 hover:border-teal-500 hover:text-teal-400 text-neutral-500 text-xs py-1.5 px-3 transition-colors cursor-pointer whitespace-nowrap">
+                  {uploads.paspor.file ? `📄 ${uploads.paspor.file.name}` : "Pilih foto paspor…"}
+                </button>
+
+                {/* OCR button — appears after file is chosen */}
+                {uploads.paspor.file && (
+                  <button type="button" onClick={handleOcr} disabled={scanning}
+                    className="rounded-lg bg-teal-900/40 border border-teal-700/50 hover:bg-teal-900/70 text-teal-400 text-xs py-1.5 px-3 transition-colors cursor-pointer disabled:opacity-50 whitespace-nowrap">
+                    {scanning ? "Scanning…" : "🔍 Scan AI (OCR)"}
+                  </button>
+                )}
+
+                {uploads.paspor.driveId && (
+                  <span className="text-[10px] text-teal-500">✓ Terupload ke Drive</span>
+                )}
+              </div>
+
+              {/* Passport image preview + zoom */}
+              {pasporPreview && (
+                <div className="mt-2 flex items-start gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setZoomOpen(true)}
+                    className="relative group flex-shrink-0 cursor-zoom-in"
+                    title="Klik untuk zoom"
+                  >
+                    <img
+                      src={pasporPreview}
+                      alt="Preview paspor"
+                      className="h-28 w-auto max-w-[200px] object-cover rounded-lg border border-neutral-700 group-hover:border-teal-500 transition-colors"
+                    />
+                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 rounded-lg transition-colors flex items-center justify-center">
+                      <span className="text-white text-xs opacity-0 group-hover:opacity-100 transition-opacity font-medium">
+                        🔍 Zoom
+                      </span>
+                    </div>
+                  </button>
+                  <p className="text-[10px] text-neutral-600 mt-1">Klik gambar untuk memperbesar</p>
+                </div>
+              )}
+
+              {/* OCR result message */}
+              {scanMsg && (
+                <p className={clsx("text-[11px] mt-1.5", scanMsg.ok ? "text-teal-400" : "text-red-400")}>
+                  {scanMsg.ok ? "✓" : "⚠"} {scanMsg.text}
+                </p>
+              )}
+            </div>
+
+            {/* Upload KTP */}
+            <div>
+              <label className={lbl}>Upload KTP</label>
+              <div className="flex items-center gap-2">
+                <input ref={ktpRef} type="file" accept="image/*" className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0] ?? null;
+                    setUploads((u) => ({ ...u, ktp: { ...u.ktp, file: f, driveId: null } }));
+                  }} />
+                <button type="button" onClick={() => ktpRef.current?.click()}
+                  className="rounded-lg border border-dashed border-neutral-600 hover:border-teal-500 hover:text-teal-400 text-neutral-500 text-xs py-1.5 px-3 transition-colors cursor-pointer whitespace-nowrap">
+                  {uploads.ktp.file ? `🪪 ${uploads.ktp.file.name}` : "Pilih foto KTP…"}
+                </button>
+                {uploads.ktp.driveId && (
+                  <span className="text-[10px] text-teal-500">✓ Terupload ke Drive</span>
+                )}
+              </div>
+            </div>
+            </div>{/* end upload row */}
+
             {/* Title + Nama */}
             <div>
               <label className={lbl}>Title</label>
@@ -431,80 +508,6 @@ export function ManifestInti({ tripId, tripName, tglBerangkat, tglPulang }: Prop
               <input value={form.klien} onChange={(e) => setF("klien")(e.target.value)} className={inp} />
             </div>
 
-            {/* Upload Paspor */}
-            <div className="col-span-full">
-              <label className={lbl}>Upload Paspor</label>
-              <div className="flex items-center gap-2 flex-wrap">
-                <input ref={pasporRef} type="file" accept="image/*" className="hidden"
-                  onChange={(e) => setPassportFile(e.target.files?.[0] ?? null)} />
-                <button type="button" onClick={() => pasporRef.current?.click()}
-                  className="rounded-lg border border-dashed border-neutral-600 hover:border-teal-500 hover:text-teal-400 text-neutral-500 text-xs py-1.5 px-3 transition-colors cursor-pointer whitespace-nowrap">
-                  {uploads.paspor.file ? `📄 ${uploads.paspor.file.name}` : "Pilih foto paspor…"}
-                </button>
-
-                {/* OCR button — appears after file is chosen */}
-                {uploads.paspor.file && (
-                  <button type="button" onClick={handleOcr} disabled={scanning}
-                    className="rounded-lg bg-teal-900/40 border border-teal-700/50 hover:bg-teal-900/70 text-teal-400 text-xs py-1.5 px-3 transition-colors cursor-pointer disabled:opacity-50 whitespace-nowrap">
-                    {scanning ? "Scanning…" : "🔍 Scan AI (OCR)"}
-                  </button>
-                )}
-
-                {uploads.paspor.driveId && (
-                  <span className="text-[10px] text-teal-500">✓ Terupload ke Drive</span>
-                )}
-              </div>
-
-              {/* Passport image preview + zoom */}
-              {pasporPreview && (
-                <div className="mt-2 flex items-start gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setZoomOpen(true)}
-                    className="relative group flex-shrink-0 cursor-zoom-in"
-                    title="Klik untuk zoom"
-                  >
-                    <img
-                      src={pasporPreview}
-                      alt="Preview paspor"
-                      className="h-28 w-auto max-w-[200px] object-cover rounded-lg border border-neutral-700 group-hover:border-teal-500 transition-colors"
-                    />
-                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 rounded-lg transition-colors flex items-center justify-center">
-                      <span className="text-white text-xs opacity-0 group-hover:opacity-100 transition-opacity font-medium">
-                        🔍 Zoom
-                      </span>
-                    </div>
-                  </button>
-                  <p className="text-[10px] text-neutral-600 mt-1">Klik gambar untuk memperbesar</p>
-                </div>
-              )}
-
-              {/* OCR result message */}
-              {scanMsg && (
-                <p className={clsx("text-[11px] mt-1.5", scanMsg.ok ? "text-teal-400" : "text-red-400")}>
-                  {scanMsg.ok ? "✓" : "⚠"} {scanMsg.text}
-                </p>
-              )}
-            </div>
-
-            {/* Upload KTP */}
-            <div className="col-span-full">
-              <label className={lbl}>Upload KTP</label>
-              <div className="flex items-center gap-2">
-                <input ref={ktpRef} type="file" accept="image/*" className="hidden"
-                  onChange={(e) => {
-                    const f = e.target.files?.[0] ?? null;
-                    setUploads((u) => ({ ...u, ktp: { ...u.ktp, file: f, driveId: null } }));
-                  }} />
-                <button type="button" onClick={() => ktpRef.current?.click()}
-                  className="rounded-lg border border-dashed border-neutral-600 hover:border-teal-500 hover:text-teal-400 text-neutral-500 text-xs py-1.5 px-3 transition-colors cursor-pointer whitespace-nowrap">
-                  {uploads.ktp.file ? `🪪 ${uploads.ktp.file.name}` : "Pilih foto KTP…"}
-                </button>
-                {uploads.ktp.driveId && (
-                  <span className="text-[10px] text-teal-500">✓ Terupload ke Drive</span>
-                )}
-              </div>
-            </div>
           </div>
 
           <div className="flex justify-end gap-2 mt-4">

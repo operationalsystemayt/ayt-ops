@@ -2,7 +2,6 @@
 import { create } from "zustand";
 import type { RabMaster } from "@/types/rab";
 import { rabStorage } from "@/lib/rab/storage";
-import { rabDbApi } from "@/lib/rab/dbApi";
 
 interface RabStore {
   list: RabMaster[];
@@ -14,7 +13,7 @@ interface RabStore {
   deleteRab: (id: string) => Promise<void>;
 }
 
-export const useRabStore = create<RabStore>((set, get) => ({
+export const useRabStore = create<RabStore>((set) => ({
   list: [],
   loading: false,
   error: null,
@@ -22,7 +21,7 @@ export const useRabStore = create<RabStore>((set, get) => ({
   fetchList: async () => {
     set({ loading: true, error: null });
     try {
-      const list = await rabStorage.list();
+      const list = await rabStorage.list(); // backend-first, localStorage fallback
       set({ list, loading: false });
     } catch (e: any) {
       set({ error: e.message, loading: false });
@@ -34,8 +33,7 @@ export const useRabStore = create<RabStore>((set, get) => ({
       ...rab,
       updated_at: new Date().toISOString().slice(0, 10),
     });
-    // Dual-write to Go backend — fire-and-forget, never blocks the primary save
-    rabDbApi.upsert(saved).catch(() => {});
+    // rabStorage.save() already handles backend + localStorage internally
     set((state) => {
       const exists = state.list.find((r) => r.id === saved.id);
       return {
@@ -49,7 +47,7 @@ export const useRabStore = create<RabStore>((set, get) => ({
 
   deleteRab: async (id: string) => {
     await rabStorage.delete(id);
-    rabDbApi.delete(id).catch(() => {});
+    // rabStorage.delete() already handles backend + localStorage internally
     set((state) => ({ list: state.list.filter((r) => r.id !== id) }));
   },
 }));

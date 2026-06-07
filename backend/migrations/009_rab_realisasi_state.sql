@@ -1,0 +1,5 @@
+CREATE TABLE IF NOT EXISTS trip_rab_realisasi (
+  trip_id    UUID PRIMARY KEY REFERENCES trips(id) ON DELETE CASCADE,
+  data       JSONB NOT NULL DEFAULT '{}',
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);

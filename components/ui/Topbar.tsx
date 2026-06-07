@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { EnvBadge } from "./EnvBadge";
+import { ThemeToggle } from "./ThemeToggle";
 import { appConfig } from "@/config/app";
 import { clsx } from "clsx";
 
@@ -58,8 +59,9 @@ export function Topbar() {
         </nav>
 
         {/* Right */}
-        <div className="ml-auto text-[10px] text-gray-400 font-mono">
-          v{appConfig.version}
+        <div className="ml-auto flex items-center gap-2">
+          <span className="text-[10px] text-gray-400 font-mono">v{appConfig.version}</span>
+          <ThemeToggle />
         </div>
       </div>
     </header>

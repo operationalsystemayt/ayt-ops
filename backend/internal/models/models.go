@@ -152,6 +152,7 @@ type ManifestHotel struct {
 	HargaJpy           *float64  `json:"harga_jpy"`
 	HargaIdr           *float64  `json:"harga_idr"`
 	TotalIdr           *float64  `json:"total_idr"`
+	HargaJualIdr       *float64  `json:"harga_jual_idr"`
 	Kurs               *float64  `json:"kurs"`
 	PesertaIds         []string  `json:"peserta_ids"`
 	PesertaNames       []string  `json:"peserta_names"`
@@ -220,8 +221,10 @@ type ManifestOptionalTour struct {
 	NamaTour         string    `json:"nama_tour"`
 	Kategori         *string   `json:"kategori"`
 	Tier             *string   `json:"tier"`
+	Tanggal          *string   `json:"tanggal"`
 	HargaJualIdr     *float64  `json:"harga_jual_idr"`
-	HargaBeliJpy     *float64  `json:"harga_beli_jpy"`
+	HargaJualKurs    *float64  `json:"harga_jual_kurs"`
+	HargaBeliJpy     *float64  `json:"harga_beli_jpy"` // repurposed as harga_beli_kurs
 	HargaBeliIdr     *float64  `json:"harga_beli_idr"`
 	Kurs             *float64  `json:"kurs"`
 	PesertaIds       []string  `json:"peserta_ids"`
@@ -232,11 +235,45 @@ type ManifestOptionalTour struct {
 }
 
 type OptionalTourOCRResult struct {
-	NamaTour      string  `json:"nama_tour"`
+	NamaTour      string   `json:"nama_tour"`
+	Tanggal       string   `json:"tanggal"`
+	HargaBeliKurs float64  `json:"harga_beli_kurs"`
+	Kurs          float64  `json:"kurs"`
+	PesertaNames  []string `json:"peserta_names"`
+	// Legacy fields kept for backward compat
 	Tier          string  `json:"tier"`
 	HargaBeliJpy  float64 `json:"harga_beli_jpy"`
 	AdmissionDate string  `json:"admission_date"`
 	Qty           int     `json:"qty"`
+}
+
+type TripItinerary struct {
+	ID           string    `json:"id"`
+	TripID       string    `json:"trip_id"`
+	FileName     string    `json:"file_name"`
+	DriveFileId  string    `json:"drive_file_id"`
+	DriveViewUrl string    `json:"drive_view_url"`
+	MimeType     string    `json:"mime_type"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
+}
+
+type TripAsuransi struct {
+	ID             string    `json:"id"`
+	TripID         string    `json:"trip_id"`
+	NamaPolis      *string   `json:"nama_polis"`
+	KodeBooking    *string   `json:"kode_booking"`
+	NamaPemegang   *string   `json:"nama_pemegang"`
+	PeriodeMulai   *string   `json:"periode_mulai"`
+	PeriodeSelesai *string   `json:"periode_selesai"`
+	FileName       *string   `json:"file_name"`
+	DriveFileId    *string   `json:"drive_file_id"`
+	DriveViewUrl   *string   `json:"drive_view_url"`
+	MimeType       *string   `json:"mime_type"`
+	PesertaIds     []string  `json:"peserta_ids"`
+	PesertaNames   []string  `json:"peserta_names"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
 }
 
 type LabaResult struct {
