@@ -7,9 +7,9 @@ import {
 } from "@/components/ui";
 import { BudgetPanel, SummaryRow } from "@/components/rab/BudgetPanel";
 import { computeRAB, formatIDR } from "@/lib/rab/calculations";
-import { blankItem } from "@/lib/rab/factory";
+import { blankItem, blankKursEntry } from "@/lib/rab/factory";
 import { exportRABtoCsv } from "@/lib/rab/export";
-import type { RabMaster, RabItem } from "@/types/rab";
+import type { RabMaster, RabItem, KursEntry } from "@/types/rab";
 import { clsx } from "clsx";
 
 interface Props {
@@ -30,15 +30,33 @@ export function RabForm({ initial, onSave, onCancel, isSaving }: Props) {
   const setH = (key: keyof typeof h) => (val: any) =>
     setRab((r) => ({ ...r, header: { ...r.header, [key]: val } }));
 
+  // Default kurs entry id for newly added rows
+  const defaultKursId = () => h.kurs_list[0]?.id ?? null;
+
   // Peserta rows
-  const addPRow = () => setRab((r) => ({ ...r, peserta_rows: [...r.peserta_rows, blankItem(r.peserta_rows.length)] }));
+  const addPRow = () => setRab((r) => ({ ...r, peserta_rows: [...r.peserta_rows, blankItem(r.peserta_rows.length, defaultKursId())] }));
   const updPRow = (i: number, v: RabItem) => setRab((r) => { const rows = [...r.peserta_rows]; rows[i] = v; return { ...r, peserta_rows: rows }; });
   const delPRow = (i: number) => setRab((r) => ({ ...r, peserta_rows: r.peserta_rows.filter((_, j) => j !== i) }));
 
-  // TL rows
-  const addTRow = () => setRab((r) => ({ ...r, tl_rows: [...r.tl_rows, blankItem(r.tl_rows.length)] }));
+  // Tour Leader rows
+  const addTRow = () => setRab((r) => ({ ...r, tl_rows: [...r.tl_rows, blankItem(r.tl_rows.length, defaultKursId())] }));
   const updTRow = (i: number, v: RabItem) => setRab((r) => { const rows = [...r.tl_rows]; rows[i] = v; return { ...r, tl_rows: rows }; });
   const delTRow = (i: number) => setRab((r) => ({ ...r, tl_rows: r.tl_rows.filter((_, j) => j !== i) }));
+
+  // Tour Guide rows
+  const addGRow = () => setRab((r) => ({ ...r, guide_rows: [...r.guide_rows, blankItem(r.guide_rows.length, defaultKursId())] }));
+  const updGRow = (i: number, v: RabItem) => setRab((r) => { const rows = [...r.guide_rows]; rows[i] = v; return { ...r, guide_rows: rows }; });
+  const delGRow = (i: number) => setRab((r) => ({ ...r, guide_rows: r.guide_rows.filter((_, j) => j !== i) }));
+
+  // Driver rows
+  const addDRow = () => setRab((r) => ({ ...r, driver_rows: [...r.driver_rows, blankItem(r.driver_rows.length, defaultKursId())] }));
+  const updDRow = (i: number, v: RabItem) => setRab((r) => { const rows = [...r.driver_rows]; rows[i] = v; return { ...r, driver_rows: rows }; });
+  const delDRow = (i: number) => setRab((r) => ({ ...r, driver_rows: r.driver_rows.filter((_, j) => j !== i) }));
+
+  // Kurs list
+  const addKurs = () => setRab((r) => ({ ...r, header: { ...r.header, kurs_list: [...r.header.kurs_list, blankKursEntry()] } }));
+  const updKurs = (i: number, v: KursEntry) => setRab((r) => { const list = [...r.header.kurs_list]; list[i] = v; return { ...r, header: { ...r.header, kurs_list: list } }; });
+  const delKurs = (i: number) => setRab((r) => ({ ...r, header: { ...r.header, kurs_list: r.header.kurs_list.filter((_, j) => j !== i) } }));
 
   const handleSave = async () => {
     if (!rab.header.nama.trim()) { setError("Nama RAB wajib diisi."); return; }
@@ -62,21 +80,18 @@ export function RabForm({ initial, onSave, onCancel, isSaving }: Props) {
               className="text-sm py-2.5"
             />
           </FormField>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
             <FormField label="Tiket Pesawat (IDR/pax)">
               <NumericInput value={h.tiket_pesawat} onChange={setH("tiket_pesawat")} placeholder="9000000" />
             </FormField>
             <FormField label="Hotel Peserta (IDR/malam)">
               <NumericInput value={h.hotel_peserta} onChange={setH("hotel_peserta")} placeholder="700000" />
             </FormField>
-            <FormField label="Hotel TL (IDR/malam)">
+            <FormField label="Hotel Tour Leader (IDR/malam)">
               <NumericInput value={h.hotel_tl} onChange={setH("hotel_tl")} placeholder="1000000" />
             </FormField>
-            <FormField label="Kurs (IDR per unit asing)">
-              <NumericInput value={h.kurs} onChange={setH("kurs")} placeholder="1 = IDR langsung" />
-            </FormField>
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
             <FormField label="Jumlah Pax">
               <NumericInput value={h.jumlah_pax} onChange={setH("jumlah_pax")} />
             </FormField>
@@ -86,14 +101,60 @@ export function RabForm({ initial, onSave, onCancel, isSaving }: Props) {
             <FormField label="Jumlah Malam">
               <NumericInput value={h.jumlah_malam} onChange={setH("jumlah_malam")} />
             </FormField>
-            <FormField label="Jumlah TL">
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+            <FormField label="Jumlah Tour Leader">
               <NumericInput value={h.jumlah_tl} onChange={setH("jumlah_tl")} />
             </FormField>
+            <FormField label="Jumlah Guide">
+              <NumericInput value={h.jumlah_guide} onChange={setH("jumlah_guide")} />
+            </FormField>
+            <FormField label="Jumlah Driver">
+              <NumericInput value={h.jumlah_driver} onChange={setH("jumlah_driver")} />
+            </FormField>
+          </div>
+
+          {/* Kurs (multi) */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-semibold uppercase tracking-wider text-neutral-500">Kurs (IDR per unit asing)</span>
+              <button
+                onClick={addKurs}
+                className="text-xs text-teal-400 hover:text-teal-300 transition-colors cursor-pointer"
+              >
+                + Tambah Kurs
+              </button>
+            </div>
+            <div className="flex flex-col gap-2">
+              {h.kurs_list.map((k, i) => (
+                <div key={k.id} className="flex items-center gap-2">
+                  <TextInput
+                    value={k.label}
+                    onChange={(v) => updKurs(i, { ...k, label: v })}
+                    placeholder="Label kurs (cth: JPY, USD)"
+                    className="flex-[1] min-w-0"
+                  />
+                  <NumericInput
+                    value={k.value}
+                    onChange={(v) => updKurs(i, { ...k, value: v })}
+                    placeholder="1 = IDR langsung"
+                    className="flex-1 min-w-0"
+                  />
+                  {h.kurs_list.length > 1 && (
+                    <button
+                      onClick={() => delKurs(i)}
+                      className="text-neutral-600 hover:text-red-400 text-lg leading-none cursor-pointer px-1"
+                      title="Hapus kurs"
+                    >×</button>
+                  )}
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </div>
 
-      {/* ── Budget Peserta + TL side by side on large, stacked on mobile ── */}
+      {/* ── Budget Peserta + Tour Leader side by side on large, stacked on mobile ── */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
         {/* Budget Peserta */}
         <BudgetPanel
@@ -105,14 +166,23 @@ export function RabForm({ initial, onSave, onCancel, isSaving }: Props) {
           ]}
           rows={rab.peserta_rows}
           dynamicFinals={comp.peserta_dynamic}
+          kursList={h.kurs_list}
           onAdd={addPRow}
           onUpdate={updPRow}
           onDelete={delPRow}
           summaryRows={
             <>
               <SummaryRow
-                label={`Beban TL (total TL ÷ ${h.jumlah_pax || 0} pax)`}
+                label={`Beban Tour Leader (total Tour Leader ÷ ${h.jumlah_pax || 0} pax)`}
                 value={comp.beban_tl}
+              />
+              <SummaryRow
+                label={`Beban Tour Guide (total Tour Guide ÷ ${h.jumlah_pax || 0} pax)`}
+                value={comp.beban_guide}
+              />
+              <SummaryRow
+                label={`Beban Driver (total Driver ÷ ${h.jumlah_pax || 0} pax)`}
+                value={comp.beban_driver}
               />
               <SummaryRow
                 label="Total Biaya Final"
@@ -148,23 +218,83 @@ export function RabForm({ initial, onSave, onCancel, isSaving }: Props) {
           }
         />
 
-        {/* Budget TL */}
+        {/* Budget Tour Leader */}
         <BudgetPanel
-          title="Budget TL"
+          title="Budget Tour Leader"
           accent="amber"
           fixedRows={[
-            { label: `Tiket pesawat TL`, final: comp.tiket_tl_final },
-            { label: `Hotel TL`, final: comp.hotel_tl_final },
+            { label: `Tiket pesawat Tour Leader`, final: comp.tiket_tl_final },
+            { label: `Hotel Tour Leader`, final: comp.hotel_tl_final },
           ]}
           rows={rab.tl_rows}
           dynamicFinals={comp.tl_dynamic}
+          kursList={h.kurs_list}
           onAdd={addTRow}
           onUpdate={updTRow}
           onDelete={delTRow}
           summaryRows={
             <SummaryRow
-              label="Jumlah Beban TL"
+              label="Jumlah Beban Tour Leader"
               value={comp.total_tl}
+              variant="total"
+            />
+          }
+        />
+      </div>
+
+      {/* ── Budget Tour Guide + Driver side by side on large, stacked on mobile ── */}
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+        {/* Budget Tour Guide */}
+        <BudgetPanel
+          title="Budget Tour Guide"
+          accent="amber"
+          toggle={{
+            label: "Gunakan tiket pesawat & hotel",
+            checked: !!rab.guide_use_tiket_hotel,
+            onChange: (v) => setRab((r) => ({ ...r, guide_use_tiket_hotel: v })),
+          }}
+          fixedRows={rab.guide_use_tiket_hotel ? [
+            { label: `Tiket pesawat Tour Guide`, final: comp.tiket_guide_final },
+            { label: `Hotel Tour Guide`, final: comp.hotel_guide_final },
+          ] : []}
+          rows={rab.guide_rows}
+          dynamicFinals={comp.guide_dynamic}
+          kursList={h.kurs_list}
+          onAdd={addGRow}
+          onUpdate={updGRow}
+          onDelete={delGRow}
+          summaryRows={
+            <SummaryRow
+              label="Jumlah Beban Tour Guide"
+              value={comp.total_guide}
+              variant="total"
+            />
+          }
+        />
+
+        {/* Budget Driver */}
+        <BudgetPanel
+          title="Budget Driver"
+          accent="amber"
+          toggle={{
+            label: "Gunakan tiket pesawat & hotel",
+            checked: !!rab.driver_use_tiket_hotel,
+            onChange: (v) => setRab((r) => ({ ...r, driver_use_tiket_hotel: v })),
+          }}
+          fixedRows={rab.driver_use_tiket_hotel ? [
+            { label: `Tiket pesawat Driver`, final: comp.tiket_driver_final },
+            { label: `Hotel Driver`, final: comp.hotel_driver_final },
+          ] : []}
+          rows={rab.driver_rows}
+          dynamicFinals={comp.driver_dynamic}
+          kursList={h.kurs_list}
+          onAdd={addDRow}
+          onUpdate={updDRow}
+          onDelete={delDRow}
+          summaryRows={
+            <SummaryRow
+              label="Jumlah Beban Driver"
+              value={comp.total_driver}
               variant="total"
             />
           }
@@ -174,7 +304,7 @@ export function RabForm({ initial, onSave, onCancel, isSaving }: Props) {
       {/* ── Landtour Panel ── */}
       <div className="bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden">
         <div className="px-4 py-3 border-b border-neutral-800 text-xs font-bold uppercase tracking-widest text-neutral-400">
-          Landtour
+          Harga Landtour
         </div>
         <div className="overflow-x-auto">
           <table className="w-full">

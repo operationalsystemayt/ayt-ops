@@ -105,10 +105,13 @@ export function RabDetail({ rab, onClose, onEdit, onDelete }: RabDetailProps) {
         <div className="grid grid-cols-3 gap-2">
           <KV label="Pax" value={String(h.jumlah_pax)} />
           <KV label="Hari / Malam" value={`${h.jumlah_hari}D / ${h.jumlah_malam}N`} />
-          <KV label="Kurs" value={`Rp ${Number(h.kurs).toLocaleString("id-ID")}`} />
+          <KV
+            label="Kurs"
+            value={(h.kurs_list ?? []).map((k) => `${k.label}: Rp ${(Number(k.value) || 0).toLocaleString("id-ID")}`).join(", ") || "—"}
+          />
           <KV label="Tiket" value={formatIDR(h.tiket_pesawat as number)} />
           <KV label="Hotel/malam" value={formatIDR(h.hotel_peserta as number)} />
-          <KV label="Jumlah TL" value={String(h.jumlah_tl)} />
+          <KV label="Jumlah Tour Leader" value={String(h.jumlah_tl)} />
         </div>
 
         {/* Budget summary */}
@@ -116,7 +119,9 @@ export function RabDetail({ rab, onClose, onEdit, onDelete }: RabDetailProps) {
           <div className="text-[10px] font-semibold uppercase tracking-widest text-neutral-600 mb-3">Ringkasan Budget</div>
           <div className="grid grid-cols-2 gap-2">
             <KV label="Total Biaya Peserta" value={formatIDR(comp.total_peserta)} />
-            <KV label="Total Beban TL" value={formatIDR(comp.total_tl)} />
+            <KV label="Total Beban Tour Leader" value={formatIDR(comp.total_tl)} />
+            <KV label="Total Beban Tour Guide" value={formatIDR(comp.total_guide)} />
+            <KV label="Total Beban Driver" value={formatIDR(comp.total_driver)} />
             <KV label="Harga Jual" value={formatIDR(rab.harga_jual as number)} accent />
             <KV label="Harga Jual Landtour" value={formatIDR(rab.harga_jual_landtour as number)} />
           </div>

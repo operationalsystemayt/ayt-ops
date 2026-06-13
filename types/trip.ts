@@ -6,6 +6,8 @@ export type RoomType = "DOUBLE" | "TWIN" | "SINGLE" | "TRIPLE";
 export type MealType = "MUSLIM" | "NON_MUSLIM";
 export type VisaStatus = "not_required" | "pending" | "uploaded" | "approved" | "rejected";
 export type PaymentJenis = "dp" | "pelunasan" | "lainnya";
+export type TripCategory = "domestik" | "internasional";
+export type TripType = "open_trip" | "private_trip";
 
 export interface Trip {
   id: string;
@@ -14,6 +16,10 @@ export interface Trip {
   tgl_berangkat: string;
   tgl_pulang: string;
   total_pax: number;
+  jumlah_malam?: number;
+  trip_category: TripCategory;
+  negara?: string;
+  trip_type: TripType;
   status: TripStatus;
   drive_folder_id?: string;
   created_at: string;
@@ -36,6 +42,8 @@ export interface ManifestPeserta {
   unit?: number;
   klien?: string;
   meals?: MealType;
+  kepala_keluarga?: string;
+  note?: string;
   paspor_drive_file_id?: string;
   ktp_drive_file_id?: string;
   visa_drive_file_id?: string;
@@ -324,4 +332,22 @@ export function calcAge(tglLahir?: string): number {
   const m = today.getMonth() - birth.getMonth();
   if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
   return age;
+}
+
+// Returns true if the participant's birthday (month/day) falls within
+// [tglBerangkat, tglPulang], inclusive. Handles ranges spanning a year boundary.
+export function isBirthdayDuringTrip(tglLahir: string | undefined, tglBerangkat: string, tglPulang: string): boolean {
+  if (!tglLahir || !tglBerangkat || !tglPulang) return false;
+  const birth = new Date(tglLahir);
+  const start = new Date(tglBerangkat);
+  const end = new Date(tglPulang);
+  if (isNaN(birth.getTime()) || isNaN(start.getTime()) || isNaN(end.getTime())) return false;
+
+  const birthMD = birth.getMonth() * 100 + birth.getDate();
+
+  for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+    const md = d.getMonth() * 100 + d.getDate();
+    if (md === birthMD) return true;
+  }
+  return false;
 }

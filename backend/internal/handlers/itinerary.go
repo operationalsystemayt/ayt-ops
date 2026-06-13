@@ -82,15 +82,12 @@ func (h *Handler) UploadItinerary(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if driveFolderID == nil {
-		folderID, err := drv.EnsureFolder(ctx, drv.RootFolderID, namaTrip)
-		if err != nil {
-			jsonErr(w, 500, "create trip folder: "+err.Error())
-			return
-		}
-		driveFolderID = &folderID
-		h.DB.Exec(ctx, `UPDATE trips SET drive_folder_id = $1 WHERE id = $2::uuid`, folderID, tripID)
+	folderID, err := h.ensureTripFolder(ctx, drv, tripID)
+	if err != nil {
+		jsonErr(w, 500, "create trip folder: "+err.Error())
+		return
 	}
+	driveFolderID = &folderID
 
 	subFolder, err := drv.EnsureFolder(ctx, *driveFolderID, "3. Data Itinerary")
 	if err != nil {
@@ -182,15 +179,12 @@ func (h *Handler) ReplaceItinerary(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if driveFolderID == nil {
-		folderID, err := drv.EnsureFolder(ctx, drv.RootFolderID, namaTrip)
-		if err != nil {
-			jsonErr(w, 500, "create trip folder: "+err.Error())
-			return
-		}
-		driveFolderID = &folderID
-		h.DB.Exec(ctx, `UPDATE trips SET drive_folder_id = $1 WHERE id = $2::uuid`, folderID, tripID)
+	folderID, err := h.ensureTripFolder(ctx, drv, tripID)
+	if err != nil {
+		jsonErr(w, 500, "create trip folder: "+err.Error())
+		return
 	}
+	driveFolderID = &folderID
 
 	subFolder, err := drv.EnsureFolder(ctx, *driveFolderID, "3. Data Itinerary")
 	if err != nil {
@@ -406,15 +400,12 @@ func (h *Handler) UploadZipItinerary(w http.ResponseWriter, r *http.Request) {
 	h.DB.QueryRow(ctx, `SELECT drive_folder_id FROM trips WHERE id = $1::uuid`, tripID).
 		Scan(&driveFolderID)
 
-	if driveFolderID == nil {
-		folderID, err := drv.EnsureFolder(ctx, drv.RootFolderID, namaTrip)
-		if err != nil {
-			jsonErr(w, 500, "create trip folder: "+err.Error())
-			return
-		}
-		driveFolderID = &folderID
-		h.DB.Exec(ctx, `UPDATE trips SET drive_folder_id = $1 WHERE id = $2::uuid`, folderID, tripID)
+	folderID, err := h.ensureTripFolder(ctx, drv, tripID)
+	if err != nil {
+		jsonErr(w, 500, "create trip folder: "+err.Error())
+		return
 	}
+	driveFolderID = &folderID
 
 	subFolder, err := drv.EnsureFolder(ctx, *driveFolderID, "3. Data Itinerary")
 	if err != nil {

@@ -346,15 +346,12 @@ func (h *Handler) UploadNotaHotel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if driveFolderID == nil {
-		folderID, err := drv.EnsureFolder(ctx, drv.RootFolderID, namaTrip)
-		if err != nil {
-			jsonErr(w, 500, "create trip folder: "+err.Error())
-			return
-		}
-		driveFolderID = &folderID
-		h.DB.Exec(ctx, `UPDATE trips SET drive_folder_id = $1 WHERE id = $2::uuid`, folderID, tripID)
+	folderID, err := h.ensureTripFolder(ctx, drv, tripID)
+	if err != nil {
+		jsonErr(w, 500, "create trip folder: "+err.Error())
+		return
 	}
+	driveFolderID = &folderID
 
 	subFolder, err := drv.EnsureFolder(ctx, *driveFolderID, "5. Data Hotel")
 	if err != nil {
@@ -826,7 +823,7 @@ func (h *Handler) UploadHotelCSV(w http.ResponseWriter, r *http.Request) {
 	tripID := chi.URLParam(r, "id")
 	ctx := r.Context()
 
-	data, namaTrip, fileName, err := h.buildHotelCSV(r, tripID)
+	data, _, fileName, err := h.buildHotelCSV(r, tripID)
 	if err != nil {
 		jsonErr(w, 500, err.Error())
 		return
@@ -842,15 +839,12 @@ func (h *Handler) UploadHotelCSV(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if driveFolderID == nil {
-		folderID, err := drv.EnsureFolder(ctx, drv.RootFolderID, namaTrip)
-		if err != nil {
-			jsonErr(w, 500, "create trip folder: "+err.Error())
-			return
-		}
-		driveFolderID = &folderID
-		h.DB.Exec(ctx, `UPDATE trips SET drive_folder_id = $1 WHERE id = $2::uuid`, folderID, tripID)
+	folderID, err := h.ensureTripFolder(ctx, drv, tripID)
+	if err != nil {
+		jsonErr(w, 500, "create trip folder: "+err.Error())
+		return
 	}
+	driveFolderID = &folderID
 
 	hotelFolder, err := drv.EnsureFolder(ctx, *driveFolderID, "5. Data Hotel")
 	if err != nil {

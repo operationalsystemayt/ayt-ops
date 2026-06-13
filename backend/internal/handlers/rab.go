@@ -74,8 +74,17 @@ func (h *Handler) UpsertRab(w http.ResponseWriter, r *http.Request) {
 	hari := intVal(header["jumlah_hari"])
 	malam := intVal(header["jumlah_malam"])
 	tl := intVal(header["jumlah_tl"])
-	kurs := floatVal(header["kurs"])
+	guide := intVal(header["jumlah_guide"])
+	driver := intVal(header["jumlah_driver"])
 	hargaJual := floatVal(body["harga_jual"])
+
+	// kurs summary column = first entry of kurs_list (if any)
+	var kurs float64
+	if kursList, ok := header["kurs_list"].([]any); ok && len(kursList) > 0 {
+		if first, ok := kursList[0].(map[string]any); ok {
+			kurs = floatVal(first["value"])
+		}
+	}
 
 	dataJSON, err := json.Marshal(body)
 	if err != nil {
@@ -85,19 +94,21 @@ func (h *Handler) UpsertRab(w http.ResponseWriter, r *http.Request) {
 	now := time.Now()
 	_, err = h.DB.Exec(r.Context(), `
 		INSERT INTO rab_master (id, nama, jumlah_pax, jumlah_hari, jumlah_malam, jumlah_tl,
-		                        kurs, harga_jual, data, created_at, updated_at)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$10)
+		                        jumlah_guide, jumlah_driver, kurs, harga_jual, data, created_at, updated_at)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$12)
 		ON CONFLICT (id) DO UPDATE SET
-		  nama        = EXCLUDED.nama,
-		  jumlah_pax  = EXCLUDED.jumlah_pax,
-		  jumlah_hari = EXCLUDED.jumlah_hari,
-		  jumlah_malam= EXCLUDED.jumlah_malam,
-		  jumlah_tl   = EXCLUDED.jumlah_tl,
-		  kurs        = EXCLUDED.kurs,
-		  harga_jual  = EXCLUDED.harga_jual,
-		  data        = EXCLUDED.data,
-		  updated_at  = EXCLUDED.updated_at`,
-		id, nama, pax, hari, malam, tl, kurs, hargaJual, dataJSON, now,
+		  nama         = EXCLUDED.nama,
+		  jumlah_pax   = EXCLUDED.jumlah_pax,
+		  jumlah_hari  = EXCLUDED.jumlah_hari,
+		  jumlah_malam = EXCLUDED.jumlah_malam,
+		  jumlah_tl    = EXCLUDED.jumlah_tl,
+		  jumlah_guide = EXCLUDED.jumlah_guide,
+		  jumlah_driver= EXCLUDED.jumlah_driver,
+		  kurs         = EXCLUDED.kurs,
+		  harga_jual   = EXCLUDED.harga_jual,
+		  data         = EXCLUDED.data,
+		  updated_at   = EXCLUDED.updated_at`,
+		id, nama, pax, hari, malam, tl, guide, driver, kurs, hargaJual, dataJSON, now,
 	)
 	if err != nil {
 		jsonErr(w, 500, err.Error()); return

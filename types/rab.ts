@@ -10,9 +10,19 @@ export type DivisorType =
   | "times_tl"
   | "per_hari"
   | "times_hari"
+  | "per_guide"
+  | "times_guide"
+  | "per_driver"
+  | "times_driver"
   | "custom";
 
-export type PanelType = "peserta" | "tl" | "landtour";
+export type PanelType = "peserta" | "tl" | "guide" | "driver" | "landtour";
+
+export interface KursEntry {
+  id: string;
+  label: string;
+  value: number | "";
+}
 
 export interface RabItem {
   id: string;
@@ -21,7 +31,7 @@ export interface RabItem {
   divisor: DivisorType;
   sort_order: number;
   custom_formula?: string;
-  use_kurs?: boolean;
+  kurs_id?: string | null;
 }
 
 export interface RabHeader {
@@ -33,7 +43,9 @@ export interface RabHeader {
   jumlah_hari: number | "";
   jumlah_malam: number | "";
   jumlah_tl: number | "";
-  kurs: number | "";             // IDR per foreign unit (1 = IDR langsung)
+  jumlah_guide: number | "";
+  jumlah_driver: number | "";
+  kurs_list: KursEntry[];        // multiple kurs entries, IDR per foreign unit
 }
 
 export interface RabMaster {
@@ -41,6 +53,10 @@ export interface RabMaster {
   header: RabHeader;
   peserta_rows: RabItem[];
   tl_rows: RabItem[];
+  guide_rows: RabItem[];
+  driver_rows: RabItem[];
+  guide_use_tiket_hotel?: boolean;
+  driver_use_tiket_hotel?: boolean;
   harga_jual: number | "";
   harga_jual_landtour: number | "";
   tipping: number | "";
@@ -60,12 +76,22 @@ export interface RabComputed {
   hotel_peserta_final: number;
   tiket_tl_final: number;
   hotel_tl_final: number;
+  tiket_guide_final: number;
+  hotel_guide_final: number;
+  tiket_driver_final: number;
+  hotel_driver_final: number;
   // dynamic row finals
   peserta_dynamic: number[];
   tl_dynamic: number[];
+  guide_dynamic: number[];
+  driver_dynamic: number[];
   // totals
   total_tl: number;
   beban_tl: number;
+  total_guide: number;
+  beban_guide: number;
+  total_driver: number;
+  beban_driver: number;
   total_peserta_ex_tiket: number;
   total_peserta: number;
   total_landtour: number;

@@ -1,5 +1,5 @@
 // lib/rab/export.ts
-import type { RabMaster, RabComputed } from "@/types/rab";
+import type { RabMaster, RabComputed, RabItem } from "@/types/rab";
 import { formatIDR, n, applyDivisor } from "./calculations";
 
 type Row = (string | number)[];
@@ -10,11 +10,16 @@ function csvRow(cells: Row): string {
 
 export function exportRABtoCsv(rab: RabMaster, comp: RabComputed): void {
   const h = rab.header;
-  const pax   = n(h.jumlah_pax);
-  const malam = n(h.jumlah_malam);
-  const tl    = n(h.jumlah_tl);
-  const hari  = n(h.jumlah_hari);
-  const kurs  = n(h.kurs) || 1;
+  const pax    = n(h.jumlah_pax);
+  const malam  = n(h.jumlah_malam);
+  const tl     = n(h.jumlah_tl);
+  const hari   = n(h.jumlah_hari);
+  const guide  = n(h.jumlah_guide);
+  const driver = n(h.jumlah_driver);
+  const kursList = h.kurs_list ?? [];
+
+  const calc = (r: RabItem) =>
+    applyDivisor(n(r.biaya), r.divisor, pax, malam, tl, hari, kursList, r.kurs_id, r.custom_formula, guide, driver);
 
   const rows: Row[] = [];
 
@@ -25,11 +30,15 @@ export function exportRABtoCsv(rab: RabMaster, comp: RabComputed): void {
   rows.push(["Jumlah Pax", pax]);
   rows.push(["Jumlah Hari trip", n(h.jumlah_hari)]);
   rows.push(["Jumlah Malam", malam]);
-  rows.push(["Jumlah TL", tl]);
-  rows.push(["Kurs", kurs]);
+  rows.push(["Jumlah Tour Leader", tl]);
+  rows.push(["Jumlah Guide", guide]);
+  rows.push(["Jumlah Driver", driver]);
+  for (const k of kursList) {
+    rows.push([`Kurs: ${k.label}`, n(k.value)]);
+  }
   rows.push([]);
   rows.push([h.nama || "RAB Master"]);
-  rows.push(["Budget Peserta", "", "Landtour", "Budget TL", ""]);
+  rows.push(["Budget Peserta", "", "Landtour", "Budget Tour Leader", ""]);
 
   // Fixed rows
   rows.push([
@@ -43,7 +52,7 @@ export function exportRABtoCsv(rab: RabMaster, comp: RabComputed): void {
     `Hotel ${formatIDR(h.hotel_peserta)}/malam/pax`,
     formatIDR(comp.hotel_peserta_final),
     "",
-    "Hotel TL",
+    "Hotel Tour Leader",
     formatIDR(comp.hotel_tl_final),
   ]);
 
@@ -54,20 +63,20 @@ export function exportRABtoCsv(rab: RabMaster, comp: RabComputed): void {
     const t = rab.tl_rows[i];
     rows.push([
       p?.detail ?? "",
-      p ? formatIDR(applyDivisor(n(p.biaya), p.divisor, pax, malam, tl, hari, kurs, p.use_kurs ?? true, p.custom_formula)) : "",
+      p ? formatIDR(calc(p)) : "",
       "",
       t?.detail ?? "",
-      t ? formatIDR(applyDivisor(n(t.biaya), t.divisor, pax, malam, tl, hari, kurs, t.use_kurs ?? true, t.custom_formula)) : "",
+      t ? formatIDR(calc(t)) : "",
     ]);
   }
 
-  rows.push(["Beban TL", formatIDR(comp.beban_tl)]);
+  rows.push(["Beban Tour Leader", formatIDR(comp.beban_tl)]);
   rows.push(["Jumlah", formatIDR(comp.total_peserta), formatIDR(comp.total_landtour)]);
   rows.push([
     "Harga Jual",
     formatIDR(rab.harga_jual),
     formatIDR(rab.harga_jual_landtour),
-    "Jumlah beban TL",
+    "Jumlah beban Tour Leader",
     formatIDR(comp.total_tl),
   ]);
   rows.push(["Laba/pax", formatIDR(comp.laba_pax), formatIDR(comp.laba_pax_landtour)]);
@@ -82,6 +91,30 @@ export function exportRABtoCsv(rab: RabMaster, comp: RabComputed): void {
     formatIDR(comp.laba_plus_tipping_landtour),
   ]);
 
+  // Budget Tour Guide
+  rows.push([]);
+  rows.push(["Budget Tour Guide", ""]);
+  if (rab.guide_use_tiket_hotel) {
+    rows.push(["Tiket pesawat Tour Guide", formatIDR(comp.tiket_guide_final)]);
+    rows.push(["Hotel Tour Guide", formatIDR(comp.hotel_guide_final)]);
+  }
+  rab.guide_rows.forEach((r, i) => {
+    rows.push([r.detail || "", formatIDR(comp.guide_dynamic[i] ?? 0)]);
+  });
+  rows.push(["Jumlah beban Tour Guide", formatIDR(comp.total_guide)]);
+
+  // Budget Driver
+  rows.push([]);
+  rows.push(["Budget Driver", ""]);
+  if (rab.driver_use_tiket_hotel) {
+    rows.push(["Tiket pesawat Driver", formatIDR(comp.tiket_driver_final)]);
+    rows.push(["Hotel Driver", formatIDR(comp.hotel_driver_final)]);
+  }
+  rab.driver_rows.forEach((r, i) => {
+    rows.push([r.detail || "", formatIDR(comp.driver_dynamic[i] ?? 0)]);
+  });
+  rows.push(["Jumlah beban Driver", formatIDR(comp.total_driver)]);
+
   if (rab.notes?.trim()) {
     rows.push([]);
     rows.push(["Catatan"]);
@@ -89,7 +122,7 @@ export function exportRABtoCsv(rab: RabMaster, comp: RabComputed): void {
   }
 
   const csv = rows.map(csvRow).join("\n");
-  const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" });
+  const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" });
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement("a");
   a.href     = url;

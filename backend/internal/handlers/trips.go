@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -12,17 +13,23 @@ import (
 func (h *Handler) ListTrips(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	status := r.URL.Query().Get("status")
+	tripType := r.URL.Query().Get("trip_type")
 
 	query := `
 		SELECT id::text, nama_trip, rab_master_id, tgl_berangkat::text, tgl_pulang::text,
-		       total_pax, status::text, drive_folder_id, created_at, updated_at
+		       total_pax, jumlah_malam, trip_category::text, negara, trip_type::text,
+		       status::text, drive_folder_id, created_at, updated_at
 		FROM trips
 		WHERE deleted_at IS NULL`
 	args := []any{}
 
 	if status != "" {
-		query += ` AND status = $1::trip_status`
 		args = append(args, status)
+		query += ` AND status = $` + strconv.Itoa(len(args)) + `::trip_status`
+	}
+	if tripType != "" {
+		args = append(args, tripType)
+		query += ` AND trip_type = $` + strconv.Itoa(len(args)) + `::trip_type_type`
 	}
 	query += ` ORDER BY tgl_berangkat DESC`
 
@@ -36,7 +43,8 @@ func (h *Handler) ListTrips(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var t models.Trip
 		if err := rows.Scan(&t.ID, &t.NamaTrip, &t.RabMasterID, &t.TglBerangkat, &t.TglPulang,
-			&t.TotalPax, &t.Status, &t.DriveFolderID, &t.CreatedAt, &t.UpdatedAt); err != nil {
+			&t.TotalPax, &t.JumlahMalam, &t.TripCategory, &t.Negara, &t.TripType,
+			&t.Status, &t.DriveFolderID, &t.CreatedAt, &t.UpdatedAt); err != nil {
 			jsonErr(w, 500, err.Error()); return
 		}
 		trips = append(trips, t)
@@ -51,6 +59,10 @@ func (h *Handler) CreateTrip(w http.ResponseWriter, r *http.Request) {
 		TglBerangkat string  `json:"tgl_berangkat"`
 		TglPulang    string  `json:"tgl_pulang"`
 		TotalPax     int     `json:"total_pax"`
+		JumlahMalam  *int    `json:"jumlah_malam"`
+		TripCategory string  `json:"trip_category"`
+		Negara       *string `json:"negara"`
+		TripType     string  `json:"trip_type"`
 	}
 	if err := decode(r, &body); err != nil {
 		jsonErr(w, 400, "invalid body"); return
@@ -58,17 +70,27 @@ func (h *Handler) CreateTrip(w http.ResponseWriter, r *http.Request) {
 	if body.NamaTrip == "" || body.TglBerangkat == "" {
 		jsonErr(w, 400, "nama_trip and tgl_berangkat are required"); return
 	}
+	if body.TripCategory == "" {
+		body.TripCategory = "domestik"
+	}
+	if body.TripType == "" {
+		body.TripType = "open_trip"
+	}
 
 	ctx := context.Background()
 	var t models.Trip
 	err := h.DB.QueryRow(ctx, `
-		INSERT INTO trips (nama_trip, rab_master_id, tgl_berangkat, tgl_pulang, total_pax)
-		VALUES ($1, $2, $3::date, $4::date, $5)
+		INSERT INTO trips (nama_trip, rab_master_id, tgl_berangkat, tgl_pulang, total_pax,
+		                   jumlah_malam, trip_category, negara, trip_type)
+		VALUES ($1, $2, $3::date, $4::date, $5, $6, $7::trip_category_type, $8, $9::trip_type_type)
 		RETURNING id::text, nama_trip, rab_master_id, tgl_berangkat::text, tgl_pulang::text,
-		          total_pax, status::text, drive_folder_id, created_at, updated_at`,
+		          total_pax, jumlah_malam, trip_category::text, negara, trip_type::text,
+		          status::text, drive_folder_id, created_at, updated_at`,
 		body.NamaTrip, body.RabMasterID, body.TglBerangkat, body.TglPulang, body.TotalPax,
+		body.JumlahMalam, body.TripCategory, body.Negara, body.TripType,
 	).Scan(&t.ID, &t.NamaTrip, &t.RabMasterID, &t.TglBerangkat, &t.TglPulang,
-		&t.TotalPax, &t.Status, &t.DriveFolderID, &t.CreatedAt, &t.UpdatedAt)
+		&t.TotalPax, &t.JumlahMalam, &t.TripCategory, &t.Negara, &t.TripType,
+		&t.Status, &t.DriveFolderID, &t.CreatedAt, &t.UpdatedAt)
 	if err != nil {
 		jsonErr(w, 500, err.Error()); return
 	}
@@ -81,10 +103,12 @@ func (h *Handler) GetTrip(w http.ResponseWriter, r *http.Request) {
 	var t models.Trip
 	err := h.DB.QueryRow(r.Context(), `
 		SELECT id::text, nama_trip, rab_master_id, tgl_berangkat::text, tgl_pulang::text,
-		       total_pax, status::text, drive_folder_id, created_at, updated_at
+		       total_pax, jumlah_malam, trip_category::text, negara, trip_type::text,
+		       status::text, drive_folder_id, created_at, updated_at
 		FROM trips WHERE id = $1::uuid AND deleted_at IS NULL`, id,
 	).Scan(&t.ID, &t.NamaTrip, &t.RabMasterID, &t.TglBerangkat, &t.TglPulang,
-		&t.TotalPax, &t.Status, &t.DriveFolderID, &t.CreatedAt, &t.UpdatedAt)
+		&t.TotalPax, &t.JumlahMalam, &t.TripCategory, &t.Negara, &t.TripType,
+		&t.Status, &t.DriveFolderID, &t.CreatedAt, &t.UpdatedAt)
 	if err != nil {
 		jsonErr(w, 404, "trip not found"); return
 	}
@@ -95,6 +119,7 @@ func (h *Handler) UpdateTrip(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	var body struct {
 		NamaTrip     *string `json:"nama_trip"`
+		RabMasterID  *string `json:"rab_master_id"`
 		TglBerangkat *string `json:"tgl_berangkat"`
 		TglPulang    *string `json:"tgl_pulang"`
 		TotalPax     *int    `json:"total_pax"`
@@ -107,13 +132,14 @@ func (h *Handler) UpdateTrip(w http.ResponseWriter, r *http.Request) {
 	_, err := h.DB.Exec(r.Context(), `
 		UPDATE trips SET
 		  nama_trip     = COALESCE($2, nama_trip),
-		  tgl_berangkat = COALESCE($3::date, tgl_berangkat),
-		  tgl_pulang    = COALESCE($4::date, tgl_pulang),
-		  total_pax     = COALESCE($5, total_pax),
-		  status        = COALESCE($6::trip_status, status),
-		  updated_at    = $7
+		  rab_master_id = COALESCE($3, rab_master_id),
+		  tgl_berangkat = COALESCE($4::date, tgl_berangkat),
+		  tgl_pulang    = COALESCE($5::date, tgl_pulang),
+		  total_pax     = COALESCE($6, total_pax),
+		  status        = COALESCE($7::trip_status, status),
+		  updated_at    = $8
 		WHERE id = $1::uuid AND deleted_at IS NULL`,
-		id, body.NamaTrip, body.TglBerangkat, body.TglPulang, body.TotalPax, body.Status, time.Now(),
+		id, body.NamaTrip, body.RabMasterID, body.TglBerangkat, body.TglPulang, body.TotalPax, body.Status, time.Now(),
 	)
 	if err != nil {
 		jsonErr(w, 500, err.Error()); return

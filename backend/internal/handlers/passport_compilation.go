@@ -99,14 +99,11 @@ func (h *Handler) PassportCompilation(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Ensure trip folder → "1. Data Paspor & KTP" → "Paspor"
-	if driveFolderID == nil {
-		folderID, err := drv.EnsureFolder(ctx, drv.RootFolderID, namaTrip)
-		if err != nil {
-			jsonErr(w, 500, "create trip folder: "+err.Error()); return
-		}
-		driveFolderID = &folderID
-		h.DB.Exec(ctx, `UPDATE trips SET drive_folder_id = $1 WHERE id = $2::uuid`, folderID, tripID)
+	folderID, err := h.ensureTripFolder(ctx, drv, tripID)
+	if err != nil {
+		jsonErr(w, 500, "create trip folder: "+err.Error()); return
 	}
+	driveFolderID = &folderID
 	dokFolder, err := drv.EnsureFolder(ctx, *driveFolderID, "1. Data Paspor & KTP")
 	if err != nil {
 		jsonErr(w, 500, err.Error()); return

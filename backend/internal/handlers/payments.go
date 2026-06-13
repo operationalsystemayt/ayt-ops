@@ -154,14 +154,11 @@ func (h *Handler) CreatePayment(w http.ResponseWriter, r *http.Request) {
 			jsonErr(w, 503, drvErr.Error()); return
 		}
 
-		if driveFolderID == nil {
-			folderID, fErr := drv.EnsureFolder(ctx, drv.RootFolderID, namaTrip)
-			if fErr != nil {
-				jsonErr(w, 500, "create trip folder: "+fErr.Error()); return
-			}
-			driveFolderID = &folderID
-			h.DB.Exec(ctx, `UPDATE trips SET drive_folder_id = $1 WHERE id = $2::uuid`, folderID, tripID)
+		folderID, fErr := h.ensureTripFolder(ctx, drv, tripID)
+		if fErr != nil {
+			jsonErr(w, 500, "create trip folder: "+fErr.Error()); return
 		}
+		driveFolderID = &folderID
 
 		paymentFolder, fErr := drv.EnsureFolder(ctx, *driveFolderID, "13. Data Pembayaran")
 		if fErr != nil {
@@ -354,7 +351,7 @@ func (h *Handler) UploadPaymentsCSV(w http.ResponseWriter, r *http.Request) {
 	tripID := chi.URLParam(r, "id")
 	ctx := r.Context()
 
-	data, namaTrip, fileName, err := h.buildPaymentsCSV(r, tripID)
+	data, _, fileName, err := h.buildPaymentsCSV(r, tripID)
 	if err != nil {
 		jsonErr(w, 500, err.Error())
 		return
@@ -370,15 +367,12 @@ func (h *Handler) UploadPaymentsCSV(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if driveFolderID == nil {
-		folderID, err := drv.EnsureFolder(ctx, drv.RootFolderID, namaTrip)
-		if err != nil {
-			jsonErr(w, 500, "create trip folder: "+err.Error())
-			return
-		}
-		driveFolderID = &folderID
-		h.DB.Exec(ctx, `UPDATE trips SET drive_folder_id = $1 WHERE id = $2::uuid`, folderID, tripID)
+	folderID, err := h.ensureTripFolder(ctx, drv, tripID)
+	if err != nil {
+		jsonErr(w, 500, "create trip folder: "+err.Error())
+		return
 	}
+	driveFolderID = &folderID
 
 	paymentFolder, err := drv.EnsureFolder(ctx, *driveFolderID, "13. Data Pembayaran")
 	if err != nil {

@@ -64,15 +64,12 @@ func (h *Handler) UploadVisa(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Ensure trip folder
-	if driveFolderID == nil {
-		folderID, err := drv.EnsureFolder(ctx, drv.RootFolderID, namaTrip)
-		if err != nil {
-			jsonErr(w, 500, "create trip folder: "+err.Error())
-			return
-		}
-		driveFolderID = &folderID
-		h.DB.Exec(ctx, `UPDATE trips SET drive_folder_id = $1 WHERE id = $2::uuid`, folderID, tripID)
+	folderID, err := h.ensureTripFolder(ctx, drv, tripID)
+	if err != nil {
+		jsonErr(w, 500, "create trip folder: "+err.Error())
+		return
 	}
+	driveFolderID = &folderID
 
 	subFolder, err := drv.EnsureFolder(ctx, *driveFolderID, "2. Data Visa")
 	if err != nil {
@@ -281,7 +278,7 @@ func (h *Handler) UploadVisaCSV(w http.ResponseWriter, r *http.Request) {
 	tripID := chi.URLParam(r, "id")
 	ctx := r.Context()
 
-	data, namaTrip, fileName, err := h.buildVisaCSV(r, tripID)
+	data, _, fileName, err := h.buildVisaCSV(r, tripID)
 	if err != nil {
 		jsonErr(w, 500, err.Error())
 		return
@@ -297,15 +294,12 @@ func (h *Handler) UploadVisaCSV(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if driveFolderID == nil {
-		folderID, err := drv.EnsureFolder(ctx, drv.RootFolderID, namaTrip)
-		if err != nil {
-			jsonErr(w, 500, "create trip folder: "+err.Error())
-			return
-		}
-		driveFolderID = &folderID
-		h.DB.Exec(ctx, `UPDATE trips SET drive_folder_id = $1 WHERE id = $2::uuid`, folderID, tripID)
+	folderID, err := h.ensureTripFolder(ctx, drv, tripID)
+	if err != nil {
+		jsonErr(w, 500, "create trip folder: "+err.Error())
+		return
 	}
+	driveFolderID = &folderID
 
 	visaFolder, err := drv.EnsureFolder(ctx, *driveFolderID, "2. Data Visa")
 	if err != nil {

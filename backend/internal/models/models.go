@@ -9,6 +9,10 @@ type Trip struct {
 	TglBerangkat        string     `json:"tgl_berangkat"`
 	TglPulang           string     `json:"tgl_pulang"`
 	TotalPax            int        `json:"total_pax"`
+	JumlahMalam         *int       `json:"jumlah_malam"`
+	TripCategory        string     `json:"trip_category"`
+	Negara              *string    `json:"negara"`
+	TripType            string     `json:"trip_type"`
 	Status              string     `json:"status"`
 	DriveFolderID       *string    `json:"drive_folder_id"`
 	ManifestCsvDriveID  *string    `json:"manifest_csv_drive_id"`
@@ -32,6 +36,8 @@ type ManifestPeserta struct {
 	Unit               *int       `json:"unit"`
 	Klien              *string    `json:"klien"`
 	Meals              *string    `json:"meals"`
+	KepalaKeluarga     *string    `json:"kepala_keluarga"`
+	Note               *string    `json:"note"`
 	PasporDriveFileID  *string    `json:"paspor_drive_file_id"`
 	KtpDriveFileID     *string    `json:"ktp_drive_file_id"`
 	VisaDriveFileID    *string    `json:"visa_drive_file_id"`

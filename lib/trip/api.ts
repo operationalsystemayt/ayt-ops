@@ -11,14 +11,19 @@ import type {
 
 const BASE = process.env.NEXT_PUBLIC_TRIP_API_URL ?? "http://localhost:8080";
 
+// Shared secret sent to the Go backend so it can reject direct curl/bot traffic.
+// Set NEXT_PUBLIC_API_KEY to the same value as the backend's FRONTEND_API_KEY.
+const API_KEY = process.env.NEXT_PUBLIC_API_KEY;
+const apiKeyHeaders: HeadersInit = API_KEY ? { "X-Api-Key": API_KEY } : {};
+
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
   const url = `${BASE}${path}`;
   console.debug(`[API] ${init?.method ?? "GET"} ${url}`);
   let res: Response;
   try {
     res = await fetch(url, {
-      headers: { "Content-Type": "application/json" },
       ...init,
+      headers: { "Content-Type": "application/json", ...apiKeyHeaders, ...init?.headers },
     });
   } catch (e: any) {
     console.error(`[API] network error — ${init?.method ?? "GET"} ${url}:`, e.message);
@@ -38,7 +43,7 @@ async function reqForm<T>(url: string, fd: FormData): Promise<T> {
   console.debug(`[API] POST (form) ${url}`);
   let res: Response;
   try {
-    res = await fetch(url, { method: "POST", body: fd });
+    res = await fetch(url, { method: "POST", body: fd, headers: apiKeyHeaders });
   } catch (e: any) {
     console.error(`[API] network error — POST ${url}:`, e.message);
     throw new Error(`Network error: cannot reach ${BASE} — is the Go backend running?`);
@@ -54,8 +59,13 @@ async function reqForm<T>(url: string, fd: FormData): Promise<T> {
 
 // ── Trips ──────────────────────────────────────────────────────────────────────
 export const tripApi = {
-  list: (status?: string) =>
-    req<Trip[]>(`/api/trips${status ? `?status=${status}` : ""}`),
+  list: (status?: string, tripType?: string) => {
+    const params = new URLSearchParams();
+    if (status) params.set("status", status);
+    if (tripType) params.set("trip_type", tripType);
+    const qs = params.toString();
+    return req<Trip[]>(`/api/trips${qs ? `?${qs}` : ""}`);
+  },
   get: (id: string) => req<Trip>(`/api/trips/${id}`),
   create: (body: Partial<Trip>) =>
     req<Trip>("/api/trips", { method: "POST", body: JSON.stringify(body) }),
@@ -114,6 +124,10 @@ export const manifestApi = {
     req<{ file_name: string; drive_file_id: string; drive_view_url: string }>(
       `/api/trips/${tripId}/peserta/manifest-csv`, { method: "POST" },
     ),
+  uploadToDrive: (tripId: string, format: "csv" | "xlsx" | "pdf") =>
+    req<{ file_name: string; drive_file_id: string; drive_view_url: string }>(
+      `/api/trips/${tripId}/peserta/manifest-csv?format=${format}`, { method: "POST" },
+    ),
   passportCompilation: (tripId: string) =>
     req<{ file_name: string; drive_view_url: string; total_images: number }>(
       `/api/trips/${tripId}/passport-compilation`, { method: "POST" },
@@ -144,7 +158,7 @@ export const keberangkatanApi = {
     ),
   exportCsv: async (tripId: string): Promise<void> => {
     const url = `${BASE}/api/trips/${tripId}/keberangkatan/export-csv`;
-    const res = await fetch(url);
+    const res = await fetch(url, { headers: apiKeyHeaders });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const blob = await res.blob();
     const disposition = res.headers.get("Content-Disposition") ?? "";
@@ -187,7 +201,7 @@ export const hotelApi = {
     ),
   exportCsv: async (tripId: string): Promise<void> => {
     const url = `${BASE}/api/trips/${tripId}/hotel/export-csv`;
-    const res = await fetch(url);
+    const res = await fetch(url, { headers: apiKeyHeaders });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const blob = await res.blob();
     const disposition = res.headers.get("Content-Disposition") ?? "";
@@ -230,7 +244,7 @@ export const transportasiApi = {
     ),
   exportCsv: async (tripId: string): Promise<void> => {
     const url = `${BASE}/api/trips/${tripId}/transportasi/export-csv`;
-    const res = await fetch(url);
+    const res = await fetch(url, { headers: apiKeyHeaders });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const blob = await res.blob();
     const disposition = res.headers.get("Content-Disposition") ?? "";
@@ -266,7 +280,7 @@ export const optionalTourApi = {
     console.debug(`[API] PUT (form) ${url}`);
     let res: Response;
     try {
-      res = await fetch(url, { method: "PUT", body: fd });
+      res = await fetch(url, { method: "PUT", body: fd, headers: apiKeyHeaders });
     } catch (e: any) {
       console.error(`[API] network error — PUT ${url}:`, e.message);
       throw new Error(`Network error: cannot reach ${BASE} — is the Go backend running?`);
@@ -285,7 +299,7 @@ export const optionalTourApi = {
     ),
   exportCsv: async (tripId: string): Promise<void> => {
     const url = `${BASE}/api/trips/${tripId}/optional-tour/export-csv`;
-    const res = await fetch(url);
+    const res = await fetch(url, { headers: apiKeyHeaders });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const blob = await res.blob();
     const disposition = res.headers.get("Content-Disposition") ?? "";
@@ -332,7 +346,7 @@ export const visaApi = {
     req<void>(`/api/trips/${tripId}/peserta/${pid}/visa`, { method: "DELETE" }),
   exportCsv: async (tripId: string): Promise<void> => {
     const url = `${BASE}/api/trips/${tripId}/visa/export-csv`;
-    const res = await fetch(url);
+    const res = await fetch(url, { headers: apiKeyHeaders });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const blob = await res.blob();
     const disposition = res.headers.get("Content-Disposition") ?? "";
@@ -364,7 +378,7 @@ export const itineraryApi = {
     console.debug(`[API] PUT (form) ${url}`);
     let res: Response;
     try {
-      res = await fetch(url, { method: "PUT", body: fd });
+      res = await fetch(url, { method: "PUT", body: fd, headers: apiKeyHeaders });
     } catch (e: any) {
       console.error(`[API] network error — PUT ${url}:`, e.message);
       throw new Error(`Network error: cannot reach ${BASE} — is the Go backend running?`);
@@ -383,7 +397,7 @@ export const itineraryApi = {
 
   exportZip: async (tripId: string): Promise<void> => {
     const url = `${BASE}/api/trips/${tripId}/itinerary/export-zip`;
-    const res = await fetch(url);
+    const res = await fetch(url, { headers: apiKeyHeaders });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const blob = await res.blob();
     const disposition = res.headers.get("Content-Disposition") ?? "";
@@ -412,7 +426,7 @@ export const paymentsApi = {
     req<void>(`/api/trips/${tripId}/payments/${payId}`, { method: "DELETE" }),
   exportCsv: async (tripId: string): Promise<void> => {
     const url = `${BASE}/api/trips/${tripId}/payments/export-csv`;
-    const res = await fetch(url);
+    const res = await fetch(url, { headers: apiKeyHeaders });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const blob = await res.blob();
     const disposition = res.headers.get("Content-Disposition") ?? "";
@@ -449,7 +463,7 @@ export const asuransiApi = {
     console.debug(`[API] PUT (form) ${url}`);
     let res: Response;
     try {
-      res = await fetch(url, { method: "PUT", body: fd });
+      res = await fetch(url, { method: "PUT", body: fd, headers: apiKeyHeaders });
     } catch (e: any) {
       console.error(`[API] network error — PUT ${url}:`, e.message);
       throw new Error(`Network error: cannot reach ${BASE} — is the Go backend running?`);
@@ -468,7 +482,7 @@ export const asuransiApi = {
 
   exportZip: async (tripId: string): Promise<void> => {
     const url = `${BASE}/api/trips/${tripId}/asuransi/export-zip`;
-    const res = await fetch(url);
+    const res = await fetch(url, { headers: apiKeyHeaders });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const blob = await res.blob();
     const disposition = res.headers.get("Content-Disposition") ?? "";
@@ -502,7 +516,7 @@ export const rabRealisasiApi = {
   uploadCsvToDrive: async (tripId: string, csvContent: string): Promise<{ file_name: string; drive_view_url: string }> => {
     const res = await fetch(`${BASE}/api/trips/${tripId}/rab-realisasi/upload-csv`, {
       method: "POST",
-      headers: { "Content-Type": "text/csv; charset=utf-8" },
+      headers: { "Content-Type": "text/csv; charset=utf-8", ...apiKeyHeaders },
       body: csvContent,
     });
     if (!res.ok) {

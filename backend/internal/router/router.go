@@ -1,7 +1,10 @@
 package router
 
 import (
+	"log"
 	"net/http"
+	"os"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -11,17 +14,50 @@ import (
 	"ayt-ops/backend/internal/handlers"
 )
 
+// apiKeyAuth rejects requests that don't carry the shared X-Api-Key header.
+// The key is set via FRONTEND_API_KEY — if it's not configured (e.g. local dev),
+// the check is skipped entirely so nothing breaks without extra setup.
+func apiKeyAuth(expected string) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if expected == "" || r.URL.Path == "/health" || r.Header.Get("X-Api-Key") == expected {
+				next.ServeHTTP(w, r)
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusForbidden)
+			w.Write([]byte(`{"error":"forbidden"}`))
+		})
+	}
+}
+
 func New(db *pgxpool.Pool) http.Handler {
 	r := chi.NewRouter()
 
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
+
+	allowedOrigins := []string{"*"}
+	if v := os.Getenv("CORS_ALLOWED_ORIGINS"); v != "" {
+		allowedOrigins = strings.Split(v, ",")
+		for i := range allowedOrigins {
+			allowedOrigins[i] = strings.TrimSpace(allowedOrigins[i])
+		}
+	}
 	r.Use(cors.Handler(cors.Options{
-		AllowedOrigins:   []string{"*"},
+		AllowedOrigins:   allowedOrigins,
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowedHeaders:   []string{"Accept", "Content-Type"},
+		AllowedHeaders:   []string{"Accept", "Content-Type", "X-Api-Key"},
 		AllowCredentials: false,
 	}))
+
+	apiKey := os.Getenv("FRONTEND_API_KEY")
+	if apiKey != "" {
+		log.Println("✓ API key auth       : enabled (X-Api-Key required)")
+	} else {
+		log.Println("✗ API key auth       : FRONTEND_API_KEY not set — all requests accepted")
+	}
+	r.Use(apiKeyAuth(apiKey))
 
 	h := &handlers.Handler{DB: db}
 

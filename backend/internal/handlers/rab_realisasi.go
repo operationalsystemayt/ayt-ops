@@ -83,15 +83,12 @@ func (h *Handler) UploadRabRealisasiCSV(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	if driveFolderID == nil {
-		folderID, err := drv.EnsureFolder(ctx, drv.RootFolderID, namaTrip)
-		if err != nil {
-			jsonErr(w, 500, "create trip folder: "+err.Error())
-			return
-		}
-		driveFolderID = &folderID
-		h.DB.Exec(ctx, `UPDATE trips SET drive_folder_id = $1 WHERE id = $2::uuid`, folderID, tripID)
+	folderID, err := h.ensureTripFolder(ctx, drv, tripID)
+	if err != nil {
+		jsonErr(w, 500, "create trip folder: "+err.Error())
+		return
 	}
+	driveFolderID = &folderID
 
 	rabFolder, err := drv.EnsureFolder(ctx, *driveFolderID, "12. RAB Realisasi")
 	if err != nil {

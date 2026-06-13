@@ -1,8 +1,8 @@
 "use client";
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { pesertaApi, ocrApi, manifestApi } from "@/lib/trip/api";
-import { Button } from "@/components/ui";
-import { getPesertaStatus, calcAge } from "@/types/trip";
+import { Button, Badge } from "@/components/ui";
+import { getPesertaStatus, calcAge, isBirthdayDuringTrip } from "@/types/trip";
 import type { ManifestPeserta, PesertaTitle, RoomType, MealType } from "@/types/trip";
 import { clsx } from "clsx";
 
@@ -38,6 +38,8 @@ function blankForm() {
     room_type: "" as RoomType | "",
     meals: "NON_MUSLIM" as MealType,
     klien: "",
+    kepala_keluarga: "",
+    note: "",
   };
 }
 
@@ -82,7 +84,47 @@ function tripDateRange(start: string, end: string): string {
   return `${sd} ${MONTHS_UPPER[sm - 1]} - ${ed} ${MONTHS_UPPER[em - 1]} ${ey}`;
 }
 
-function empty13(): string[] { return Array(13).fill(""); }
+const MANIFEST_COLS = 15;
+function emptyManifestRow(): string[] { return Array(MANIFEST_COLS).fill(""); }
+
+const MANIFEST_HEADER_ROW1 = ["NO ", "Title", "NAME", "ROOM TYPE", "PASSPORT NO", "BIRTH", "", "", "VALIDITY PASSPOR", "", "", "UNIT", "KLIEN", "KEPALA KELUARGA", "NOTE"];
+const MANIFEST_HEADER_ROW2 = ["", "", "", "", "", "PLACE", "AGE", "DATE", "PLACE OF ISSUED", "ISSUED DATE", "EXPIRY", "", "", "", ""];
+
+// Returns a map of kepala_keluarga -> unit count, for non-empty values.
+function kkCountMap(list: ManifestPeserta[]): Map<string, number> {
+  const m = new Map<string, number>();
+  for (const p of list) {
+    if (p.kepala_keluarga) m.set(p.kepala_keluarga, (m.get(p.kepala_keluarga) ?? 0) + 1);
+  }
+  return m;
+}
+
+// "Budi" -> "Budi (3 unit)" when part of a multi-member family group.
+function kkLabel(p: ManifestPeserta, counts: Map<string, number>): string {
+  if (!p.kepala_keluarga) return "";
+  const c = counts.get(p.kepala_keluarga) ?? 1;
+  return `${p.kepala_keluarga} (${c} unit)`;
+}
+
+function manifestDataRow(p: ManifestPeserta, i: number, counts: Map<string, number>): (string | number)[] {
+  return [
+    i + 1,
+    p.title ?? "",
+    p.nama_lengkap,
+    p.room_type ?? "",
+    p.no_paspor ?? "",
+    p.place_of_birth ?? "",
+    p.tgl_lahir ? calcAge(p.tgl_lahir) : "",
+    fmtDateForCsv(p.tgl_lahir),
+    p.place_of_issued ?? "",
+    fmtDateForCsv(p.issued_date),
+    fmtDateForCsv(p.expiry_date),
+    p.unit ?? "",
+    p.klien ?? "",
+    kkLabel(p, counts),
+    p.note ?? "",
+  ];
+}
 
 function downloadManifestCsv(
   list: ManifestPeserta[],
@@ -90,35 +132,22 @@ function downloadManifestCsv(
   tglBerangkat: string,
   tglPulang: string,
 ) {
+  const counts = kkCountMap(list);
   const rows: (string | number)[][] = [
     // Header block
-    ["ANGKASA YUDISTIRA TRAVEL", ...Array(12).fill("")],
-    [`NOTE PEMESANAN TIKET - ${tripName.toUpperCase()}`, ...Array(12).fill("")],
-    [tripDateRange(tglBerangkat, tglPulang), ...Array(12).fill("")],
-    empty13(),
+    ["ANGKASA YUDISTIRA TRAVEL", ...Array(MANIFEST_COLS - 1).fill("")],
+    [`NOTE PEMESANAN TIKET - ${tripName.toUpperCase()}`, ...Array(MANIFEST_COLS - 1).fill("")],
+    [tripDateRange(tglBerangkat, tglPulang), ...Array(MANIFEST_COLS - 1).fill("")],
+    emptyManifestRow(),
     // Two-row column header
-    ["NO ", "Title", "NAME", "ROOM TYPE", "PASSPORT NO", "BIRTH", "", "", "VALIDITY PASSPOR", "", "", "UNIT", "KLIEN"],
-    ["", "", "", "", "", "PLACE", "AGE", "DATE", "PLACE OF ISSUED", "ISSUED DATE", "EXPIRY", "", ""],
+    MANIFEST_HEADER_ROW1,
+    MANIFEST_HEADER_ROW2,
     // Data rows
-    ...list.map((p, i) => [
-      i + 1,
-      p.title ?? "",
-      p.nama_lengkap,
-      p.room_type ?? "",
-      p.no_paspor ?? "",
-      p.place_of_birth ?? "",
-      p.tgl_lahir ? calcAge(p.tgl_lahir) : "",
-      fmtDateForCsv(p.tgl_lahir),
-      p.place_of_issued ?? "",
-      fmtDateForCsv(p.issued_date),
-      fmtDateForCsv(p.expiry_date),
-      p.unit ?? "",
-      p.klien ?? "",
-    ]),
+    ...list.map((p, i) => manifestDataRow(p, i, counts)),
     // Footer
-    empty13(), empty13(), empty13(), empty13(),
-    ["", "SUDAH PUNYA VISA", ...Array(11).fill("")],
-    ["", "URUS VISA SENDIRI", ...Array(11).fill("")],
+    emptyManifestRow(), emptyManifestRow(), emptyManifestRow(), emptyManifestRow(),
+    ["", "SUDAH PUNYA VISA", ...Array(MANIFEST_COLS - 2).fill("")],
+    ["", "URUS VISA SENDIRI", ...Array(MANIFEST_COLS - 2).fill("")],
   ];
 
   const csv = rows.map(csvRow).join("\n");
@@ -129,6 +158,56 @@ function downloadManifestCsv(
   a.download = `manifest_peserta_${tripName.replace(/\s+/g, "_")}_${new Date().toISOString().slice(0, 10)}.csv`;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+async function downloadManifestXlsx(
+  list: ManifestPeserta[],
+  tripName: string,
+  tglBerangkat: string,
+  tglPulang: string,
+) {
+  const XLSX = await import("xlsx");
+  const counts = kkCountMap(list);
+  const rows: (string | number)[][] = [
+    ["ANGKASA YUDISTIRA TRAVEL"],
+    [`NOTE PEMESANAN TIKET - ${tripName.toUpperCase()}`],
+    [tripDateRange(tglBerangkat, tglPulang)],
+    [],
+    MANIFEST_HEADER_ROW1,
+    MANIFEST_HEADER_ROW2,
+    ...list.map((p, i) => manifestDataRow(p, i, counts)),
+  ];
+
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Manifest");
+  XLSX.writeFile(wb, `manifest_peserta_${tripName.replace(/\s+/g, "_")}_${new Date().toISOString().slice(0, 10)}.xlsx`);
+}
+
+async function downloadManifestPdf(
+  list: ManifestPeserta[],
+  tripName: string,
+  tglBerangkat: string,
+  tglPulang: string,
+) {
+  const { jsPDF } = await import("jspdf");
+  const autoTable = (await import("jspdf-autotable")).default;
+  const counts = kkCountMap(list);
+
+  const doc = new jsPDF({ orientation: "landscape" });
+  doc.setFontSize(12);
+  doc.text("ANGKASA YUDISTIRA TRAVEL", 10, 10);
+  doc.setFontSize(9);
+  doc.text(`NOTE PEMESANAN TIKET - ${tripName.toUpperCase()}`, 10, 16);
+  doc.text(tripDateRange(tglBerangkat, tglPulang), 10, 22);
+
+  const head = [["No", "Title", "Nama", "Room", "Paspor", "Tempat Lahir", "Usia", "Tgl Lahir",
+    "Kantor Pengeluaran", "Tgl Pengeluaran", "Expiry", "Unit", "Klien", "Kepala Keluarga", "Note"]];
+  const body = list.map((p, i) => manifestDataRow(p, i, counts).map((c) => String(c ?? "")));
+
+  autoTable(doc, { head, body, startY: 28, styles: { fontSize: 6 } });
+
+  doc.save(`manifest_peserta_${tripName.replace(/\s+/g, "_")}_${new Date().toISOString().slice(0, 10)}.pdf`);
 }
 
 interface Props { tripId: string; tripName: string; tglBerangkat: string; tglPulang: string }
@@ -147,6 +226,9 @@ export function ManifestInti({ tripId, tripName, tglBerangkat, tglPulang }: Prop
   const [scanMsg, setScanMsg]       = useState<{ ok: boolean; text: string } | null>(null);
   const [pasporPreview, setPasporPreview] = useState<string | null>(null);
   const [zoomOpen, setZoomOpen]     = useState(false);
+  const [exportFormat, setExportFormat] = useState<"csv" | "xlsx" | "pdf">("csv");
+
+  const kkCounts = useMemo(() => kkCountMap(list), [list]);
 
   const pasporRef = useRef<HTMLInputElement>(null);
   const ktpRef    = useRef<HTMLInputElement>(null);
@@ -183,6 +265,8 @@ export function ManifestInti({ tripId, tripName, tglBerangkat, tglPulang }: Prop
     issued_date:  form.issued_date || undefined,
     tgl_lahir:    form.tgl_lahir   || undefined,
     expiry_date:  form.expiry_date  || undefined,
+    kepala_keluarga: form.kepala_keluarga || undefined,
+    note:            form.note            || undefined,
   });
 
   const handleSave = async () => {
@@ -262,6 +346,8 @@ export function ManifestInti({ tripId, tripName, tglBerangkat, tglPulang }: Prop
       room_type:       (p.room_type ?? "") as RoomType | "",
       meals:           (p.meals ?? "NON_MUSLIM") as MealType,
       klien:           p.klien ?? "",
+      kepala_keluarga: p.kepala_keluarga ?? "",
+      note:            p.note ?? "",
     });
     setEditId(p.id);
     setAdding(true);
@@ -291,22 +377,37 @@ export function ManifestInti({ tripId, tripName, tglBerangkat, tglPulang }: Prop
       <div className="flex items-center justify-between px-4 py-3 border-b border-neutral-800 flex-wrap gap-2">
         <span className="text-xs text-neutral-400">{list.length} peserta</span>
         <div className="flex items-center gap-2 flex-wrap">
-          {/* Download CSV */}
+          {/* Format picker */}
+          <select
+            value={exportFormat}
+            onChange={(e) => setExportFormat(e.target.value as "csv" | "xlsx" | "pdf")}
+            className="rounded-lg bg-neutral-900 border border-neutral-700 px-2 py-1.5 text-xs text-neutral-300 focus:outline-none focus:border-teal-500 transition-colors cursor-pointer"
+          >
+            <option value="csv">CSV</option>
+            <option value="xlsx">Excel</option>
+            <option value="pdf">PDF</option>
+          </select>
+
+          {/* Download */}
           <button
-            onClick={() => downloadManifestCsv(list, tripName, tglBerangkat, tglPulang)}
+            onClick={() => {
+              if (exportFormat === "xlsx") downloadManifestXlsx(list, tripName, tglBerangkat, tglPulang);
+              else if (exportFormat === "pdf") downloadManifestPdf(list, tripName, tglBerangkat, tglPulang);
+              else downloadManifestCsv(list, tripName, tglBerangkat, tglPulang);
+            }}
             disabled={list.length === 0}
             className="rounded-lg border border-neutral-700 hover:border-teal-500 hover:text-teal-400 text-neutral-400 text-xs py-1.5 px-3 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap"
           >
-            ↓ Download CSV
+            ↓ Download {exportFormat.toUpperCase()}
           </button>
 
-          {/* Upload CSV to Drive */}
+          {/* Upload to Drive */}
           <button
             onClick={async () => {
               setUploading(true);
               setDriveMsg(null);
               try {
-                const res = await manifestApi.uploadCsvToDrive(tripId);
+                const res = await manifestApi.uploadToDrive(tripId, exportFormat);
                 setDriveMsg({ ok: true, text: `Terupload: ${res.file_name}` });
               } catch (e: any) {
                 setDriveMsg({ ok: false, text: e.message ?? "Upload gagal" });
@@ -481,6 +582,11 @@ export function ManifestInti({ tripId, tripName, tglBerangkat, tglPulang }: Prop
               <label className={lbl}>Tgl Habis Berlaku</label>
               <input type="date" value={form.expiry_date} onChange={(e) => setF("expiry_date")(e.target.value)} className={inp} />
             </div>
+            <div>
+              <label className={lbl}>Usia</label>
+              <input value={form.tgl_lahir ? `${calcAge(form.tgl_lahir)} tahun` : "—"} disabled
+                className={clsx(inp, "opacity-60 cursor-not-allowed")} />
+            </div>
 
             {/* Kantor + Room */}
             <div className="col-span-2">
@@ -508,6 +614,17 @@ export function ManifestInti({ tripId, tripName, tglBerangkat, tglPulang }: Prop
               <input value={form.klien} onChange={(e) => setF("klien")(e.target.value)} className={inp} />
             </div>
 
+            {/* Kepala Keluarga + Note */}
+            <div>
+              <label className={lbl}>Kepala Keluarga</label>
+              <input value={form.kepala_keluarga} onChange={(e) => setF("kepala_keluarga")(e.target.value)}
+                placeholder="cth: Budi" className={inp} />
+            </div>
+            <div className="col-span-2">
+              <label className={lbl}>Note</label>
+              <input value={form.note} onChange={(e) => setF("note")(e.target.value)} className={inp} />
+            </div>
+
           </div>
 
           <div className="flex justify-end gap-2 mt-4">
@@ -527,22 +644,28 @@ export function ManifestInti({ tripId, tripName, tglBerangkat, tglPulang }: Prop
             <tr className="border-b border-neutral-800">
               {["No","Title","Nama","Paspor","Tgl Lahir","Tempat Lahir",
                 "Tgl Pengeluaran","Kantor","Expiry","Usia",
-                "Room","Klien","Meals","Dok","Status",""].map((h) => (
+                "Room","Klien","Meals","Kepala Keluarga","Note","Dok","Status",""].map((h) => (
                 <th key={h} className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wider text-neutral-600 whitespace-nowrap">{h}</th>
               ))}
             </tr>
           </thead>
           <tbody className="divide-y divide-neutral-800/50">
             {list.length === 0 && (
-              <tr><td colSpan={16} className="px-4 py-8 text-center text-xs text-neutral-600">Belum ada peserta</td></tr>
+              <tr><td colSpan={18} className="px-4 py-8 text-center text-xs text-neutral-600">Belum ada peserta</td></tr>
             )}
             {list.map((p, i) => {
               const st = getPesertaStatus(p);
+              const birthday = isBirthdayDuringTrip(p.tgl_lahir, tglBerangkat, tglPulang);
               return (
                 <tr key={p.id} className="group hover:bg-white/[0.02] transition-colors">
                   <td className="px-3 py-2 text-xs text-neutral-500">{i + 1}</td>
                   <td className="px-3 py-2 text-xs text-neutral-400">{p.title ?? "—"}</td>
-                  <td className="px-3 py-2 text-xs font-medium text-neutral-100 whitespace-nowrap">{p.nama_lengkap}</td>
+                  <td className="px-3 py-2 text-xs font-medium text-neutral-100 whitespace-nowrap">
+                    {p.nama_lengkap}
+                    {birthday && (
+                      <Badge variant="warning" className="ml-2">🎂 Ulang tahun saat trip</Badge>
+                    )}
+                  </td>
                   <td className="px-3 py-2 text-xs font-mono text-neutral-400">{p.no_paspor ?? "—"}</td>
                   <td className="px-3 py-2 text-xs text-neutral-400 whitespace-nowrap">{fmtDate(p.tgl_lahir)}</td>
                   <td className="px-3 py-2 text-xs text-neutral-400 whitespace-nowrap">{p.place_of_birth ?? "—"}</td>
@@ -553,6 +676,8 @@ export function ManifestInti({ tripId, tripName, tglBerangkat, tglPulang }: Prop
                   <td className="px-3 py-2 text-xs text-neutral-400">{p.room_type ?? "—"}</td>
                   <td className="px-3 py-2 text-xs text-neutral-400">{p.klien ?? "—"}</td>
                   <td className="px-3 py-2 text-xs text-neutral-400">{p.meals ?? "—"}</td>
+                  <td className="px-3 py-2 text-xs text-neutral-400 whitespace-nowrap">{p.kepala_keluarga ? kkLabel(p, kkCounts) : "—"}</td>
+                  <td className="px-3 py-2 text-xs text-neutral-400 whitespace-nowrap max-w-[160px] truncate" title={p.note ?? ""}>{p.note ?? "—"}</td>
                   {/* Document view links */}
                   <td className="px-3 py-2 text-xs">
                     <div className="flex gap-1.5">

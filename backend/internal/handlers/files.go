@@ -49,15 +49,11 @@ func (h *Handler) uploadDoc(w http.ResponseWriter, r *http.Request, docType stri
 	}
 
 	// Create trip root folder in Drive if not yet created
-	if driveFolderID == nil {
-		folderID, err := drv.EnsureFolder(ctx, drv.RootFolderID, namaTrip)
-		if err != nil {
-			jsonErr(w, 500, "failed to create trip folder: "+err.Error()); return
-		}
-		driveFolderID = &folderID
-		h.DB.Exec(ctx, `UPDATE trips SET drive_folder_id = $1 WHERE id = $2::uuid`,
-			folderID, tripID)
+	folderID, err := h.ensureTripFolder(ctx, drv, tripID)
+	if err != nil {
+		jsonErr(w, 500, "failed to create trip folder: "+err.Error()); return
 	}
+	driveFolderID = &folderID
 
 	// Ensure "1. Data Paspor & KTP" → sub-folder
 	parentFolder, err := drv.EnsureFolder(ctx, *driveFolderID, "1. Data Paspor & KTP")

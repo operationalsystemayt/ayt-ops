@@ -1,5 +1,5 @@
 // lib/rab/calculations.ts
-import type { RabMaster, RabItem, RabComputed, DivisorType } from "@/types/rab";
+import type { RabMaster, RabItem, RabComputed, DivisorType, KursEntry } from "@/types/rab";
 
 export function n(val: number | "" | undefined | null): number {
   if (val === "" || val === null || val === undefined) return 0;
@@ -21,6 +21,12 @@ function evalFormula(formula: string, biaya: number): number {
   }
 }
 
+export function getKursValue(kursList: KursEntry[] | undefined, kurs_id: string | null | undefined): number {
+  if (!kurs_id || !kursList) return 1;
+  const entry = kursList.find((k) => k.id === kurs_id);
+  return entry ? (n(entry.value) || 1) : 1;
+}
+
 export function applyDivisor(
   biaya: number,
   divisor: DivisorType,
@@ -28,33 +34,41 @@ export function applyDivisor(
   malam: number,
   tl: number,
   hari: number,
-  kurs: number,
-  use_kurs = true,
-  custom_formula = ""
+  kursList: KursEntry[] | undefined,
+  kurs_id: string | null | undefined,
+  custom_formula = "",
+  guide = 0,
+  driver = 0
 ): number {
-  const km = use_kurs ? (kurs || 1) : 1;
+  const km = getKursValue(kursList, kurs_id);
   if (divisor === "custom") return evalFormula(custom_formula, biaya) * km;
   const raw = biaya * km;
   switch (divisor) {
-    case "per_pax":     return raw / (pax || 1);
-    case "times_pax":   return raw * (pax || 1);
-    case "per_malam":   return raw / (malam || 1);
-    case "times_malam": return raw * (malam || 1);
-    case "per_tl":      return raw / (tl || 1);
-    case "times_tl":    return raw * (tl || 1);
-    case "per_hari":    return raw / (hari || 1);
-    case "times_hari":  return raw * (hari || 1);
-    default:            return raw;
+    case "per_pax":      return raw / (pax || 1);
+    case "times_pax":    return raw * (pax || 1);
+    case "per_malam":    return raw / (malam || 1);
+    case "times_malam":  return raw * (malam || 1);
+    case "per_tl":       return raw / (tl || 1);
+    case "times_tl":     return raw * (tl || 1);
+    case "per_hari":     return raw / (hari || 1);
+    case "times_hari":   return raw * (hari || 1);
+    case "per_guide":    return raw / (guide || 1);
+    case "times_guide":  return raw * (guide || 1);
+    case "per_driver":   return raw / (driver || 1);
+    case "times_driver": return raw * (driver || 1);
+    default:             return raw;
   }
 }
 
 export function computeRAB(rab: RabMaster): RabComputed {
   const h = rab.header;
-  const pax   = n(h.jumlah_pax);
-  const malam = n(h.jumlah_malam);
-  const tl    = n(h.jumlah_tl);
-  const hari  = n(h.jumlah_hari);
-  const kurs  = n(h.kurs) || 1;
+  const pax    = n(h.jumlah_pax);
+  const malam  = n(h.jumlah_malam);
+  const tl     = n(h.jumlah_tl);
+  const hari   = n(h.jumlah_hari);
+  const guide  = n(h.jumlah_guide);
+  const driver = n(h.jumlah_driver);
+  const kursList = h.kurs_list ?? [];
 
   // Fixed rows
   // const tiket_peserta_final  = n(h.tiket_pesawat) * pax;
@@ -63,13 +77,23 @@ export function computeRAB(rab: RabMaster): RabComputed {
   const hotel_peserta_final  = n(h.hotel_peserta) * malam;
   const tiket_tl_final       = n(h.tiket_pesawat) * tl;
   const hotel_tl_final       = n(h.hotel_tl) * malam * tl;
+  const tiket_guide_final    = rab.guide_use_tiket_hotel ? n(h.tiket_pesawat) * guide : 0;
+  const hotel_guide_final    = rab.guide_use_tiket_hotel ? n(h.hotel_tl) * malam * guide : 0;
+  const tiket_driver_final   = rab.driver_use_tiket_hotel ? n(h.tiket_pesawat) * driver : 0;
+  const hotel_driver_final   = rab.driver_use_tiket_hotel ? n(h.hotel_tl) * malam * driver : 0;
 
   // Dynamic rows
   const peserta_dynamic = rab.peserta_rows.map((r) =>
-    applyDivisor(n(r.biaya), r.divisor, pax, malam, tl, hari, kurs, r.use_kurs ?? true, r.custom_formula)
+    applyDivisor(n(r.biaya), r.divisor, pax, malam, tl, hari, kursList, r.kurs_id, r.custom_formula, guide, driver)
   );
   const tl_dynamic = rab.tl_rows.map((r) =>
-    applyDivisor(n(r.biaya), r.divisor, pax, malam, tl, hari, kurs, r.use_kurs ?? true, r.custom_formula)
+    applyDivisor(n(r.biaya), r.divisor, pax, malam, tl, hari, kursList, r.kurs_id, r.custom_formula, guide, driver)
+  );
+  const guide_dynamic = (rab.guide_rows ?? []).map((r) =>
+    applyDivisor(n(r.biaya), r.divisor, pax, malam, tl, hari, kursList, r.kurs_id, r.custom_formula, guide, driver)
+  );
+  const driver_dynamic = (rab.driver_rows ?? []).map((r) =>
+    applyDivisor(n(r.biaya), r.divisor, pax, malam, tl, hari, kursList, r.kurs_id, r.custom_formula, guide, driver)
   );
 
   const total_tl =
@@ -79,12 +103,26 @@ export function computeRAB(rab: RabMaster): RabComputed {
 
   const beban_tl = pax > 0 ? total_tl / pax : 0;
 
+  const total_guide =
+    tiket_guide_final +
+    hotel_guide_final +
+    guide_dynamic.reduce((a, b) => a + b, 0);
+
+  const beban_guide = pax > 0 ? total_guide / pax : 0;
+
+  const total_driver =
+    tiket_driver_final +
+    hotel_driver_final +
+    driver_dynamic.reduce((a, b) => a + b, 0);
+
+  const beban_driver = pax > 0 ? total_driver / pax : 0;
+
   const total_peserta_ex_tiket =
     hotel_peserta_final +
     peserta_dynamic.reduce((a, b) => a + b, 0);
 
-  const total_peserta = tiket_peserta_final + total_peserta_ex_tiket + beban_tl;
-  const total_landtour = total_peserta_ex_tiket + beban_tl;
+  const total_peserta = tiket_peserta_final + total_peserta_ex_tiket + beban_tl + beban_guide + beban_driver;
+  const total_landtour = total_peserta_ex_tiket + beban_tl + beban_guide + beban_driver;
 
   const harga_jual         = n(rab.harga_jual);
   const harga_jual_landtour = n(rab.harga_jual_landtour);
@@ -107,10 +145,20 @@ export function computeRAB(rab: RabMaster): RabComputed {
     hotel_peserta_final,
     tiket_tl_final,
     hotel_tl_final,
+    tiket_guide_final,
+    hotel_guide_final,
+    tiket_driver_final,
+    hotel_driver_final,
     peserta_dynamic,
     tl_dynamic,
+    guide_dynamic,
+    driver_dynamic,
     total_tl,
     beban_tl,
+    total_guide,
+    beban_guide,
+    total_driver,
+    beban_driver,
     total_peserta_ex_tiket,
     total_peserta,
     total_landtour,

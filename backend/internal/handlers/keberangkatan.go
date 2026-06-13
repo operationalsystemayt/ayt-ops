@@ -327,15 +327,12 @@ func (h *Handler) UploadTiket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if driveFolderID == nil {
-		folderID, err := drv.EnsureFolder(ctx, drv.RootFolderID, namaTrip)
-		if err != nil {
-			jsonErr(w, 500, "create trip folder: "+err.Error())
-			return
-		}
-		driveFolderID = &folderID
-		h.DB.Exec(ctx, `UPDATE trips SET drive_folder_id = $1 WHERE id = $2::uuid`, folderID, tripID)
+	folderID, err := h.ensureTripFolder(ctx, drv, tripID)
+	if err != nil {
+		jsonErr(w, 500, "create trip folder: "+err.Error())
+		return
 	}
+	driveFolderID = &folderID
 
 	subFolder, err := drv.EnsureFolder(ctx, *driveFolderID, "4. Data Tiket Penerbangan")
 	if err != nil {
@@ -898,7 +895,7 @@ func (h *Handler) UploadKeberangkatanCSV(w http.ResponseWriter, r *http.Request)
 	tripID := chi.URLParam(r, "id")
 	ctx := r.Context()
 
-	data, namaTrip, fileName, err := h.buildKeberangkatanCSV(r, tripID)
+	data, _, fileName, err := h.buildKeberangkatanCSV(r, tripID)
 	if err != nil {
 		jsonErr(w, 500, err.Error())
 		return
@@ -914,15 +911,12 @@ func (h *Handler) UploadKeberangkatanCSV(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	if driveFolderID == nil {
-		folderID, err := drv.EnsureFolder(ctx, drv.RootFolderID, namaTrip)
-		if err != nil {
-			jsonErr(w, 500, "create trip folder: "+err.Error())
-			return
-		}
-		driveFolderID = &folderID
-		h.DB.Exec(ctx, `UPDATE trips SET drive_folder_id = $1 WHERE id = $2::uuid`, folderID, tripID)
+	folderID, err := h.ensureTripFolder(ctx, drv, tripID)
+	if err != nil {
+		jsonErr(w, 500, "create trip folder: "+err.Error())
+		return
 	}
+	driveFolderID = &folderID
 
 	tiketFolder, err := drv.EnsureFolder(ctx, *driveFolderID, "4. Data Tiket Penerbangan")
 	if err != nil {

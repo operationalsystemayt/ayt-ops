@@ -4,7 +4,7 @@ import { useState, useRef, useCallback } from "react";
 import { NumericInput, TextInput, Select, Button } from "@/components/ui";
 import { formatIDR } from "@/lib/rab/calculations";
 import { DIVISOR_OPTIONS } from "@/lib/rab/factory";
-import type { RabItem } from "@/types/rab";
+import type { RabItem, KursEntry } from "@/types/rab";
 import { clsx } from "clsx";
 
 interface FixedRowProps {
@@ -33,9 +33,13 @@ interface DynamicRowProps {
   onChange: (row: RabItem) => void;
   onDelete: () => void;
   detailWidth: number;
+  kursList: KursEntry[];
 }
-function DynamicRow({ row, final, onChange, onDelete, detailWidth }: DynamicRowProps) {
-  const useKurs = row.use_kurs ?? true;
+function DynamicRow({ row, final, onChange, onDelete, detailWidth, kursList }: DynamicRowProps) {
+  const kursOptions = [
+    { value: "", label: "×1 (tanpa kurs)" },
+    ...kursList.map((k) => ({ value: k.id, label: k.label || "Kurs" })),
+  ];
   return (
     <tr className="group hover:bg-white/[0.02] transition-colors">
       {/* Detail Kegiatan — resizable width */}
@@ -76,21 +80,15 @@ function DynamicRow({ row, final, onChange, onDelete, detailWidth }: DynamicRowP
         )}
       </td>
 
-      {/* Biaya Final — value + kurs toggle */}
+      {/* Biaya Final — value + kurs selector */}
       <td className="px-3 py-1.5 text-right text-xs font-mono text-neutral-300 whitespace-nowrap">
         <div>{final > 0 ? formatIDR(final) : <span className="text-neutral-600">—</span>}</div>
-        <button
-          onClick={() => onChange({ ...row, use_kurs: !useKurs })}
-          title={useKurs ? "Kurs diterapkan — klik untuk nonaktifkan" : "Kurs tidak diterapkan — klik untuk aktifkan"}
-          className={clsx(
-            "text-[10px] mt-0.5 px-1.5 py-0.5 rounded border transition-colors cursor-pointer",
-            useKurs
-              ? "border-teal-600/50 text-teal-400 bg-teal-950/40"
-              : "border-neutral-700 text-neutral-600 bg-transparent"
-          )}
-        >
-          ×kurs
-        </button>
+        <Select
+          value={row.kurs_id ?? ""}
+          onChange={(v) => onChange({ ...row, kurs_id: v || null })}
+          options={kursOptions}
+          className="text-[10px] mt-0.5"
+        />
       </td>
 
       {/* Delete */}
@@ -157,15 +155,17 @@ interface BudgetPanelProps {
   fixedRows: { label: string; final: number }[];
   rows: RabItem[];
   dynamicFinals: number[];
+  kursList?: KursEntry[];
   summaryRows?: React.ReactNode;
+  toggle?: { label: string; checked: boolean; onChange: (v: boolean) => void };
   onAdd: () => void;
   onUpdate: (i: number, row: RabItem) => void;
   onDelete: (i: number) => void;
 }
 
 export function BudgetPanel({
-  title, accent = "teal", fixedRows, rows, dynamicFinals,
-  summaryRows, onAdd, onUpdate, onDelete,
+  title, accent = "teal", fixedRows, rows, dynamicFinals, kursList = [],
+  summaryRows, toggle, onAdd, onUpdate, onDelete,
 }: BudgetPanelProps) {
   const [detailWidth, setDetailWidth] = useState(180);
   const resizeRef = useRef<{ startX: number; startW: number } | null>(null);
@@ -189,10 +189,20 @@ export function BudgetPanel({
   return (
     <div className="bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden">
       <div className={clsx(
-        "px-4 py-3 border-b border-neutral-800 text-xs font-bold uppercase tracking-widest",
-        accent === "teal" ? "text-teal-400" : "text-amber-400"
+        "px-4 py-3 border-b border-neutral-800 text-xs font-bold uppercase tracking-widest flex items-center justify-between gap-3"
       )}>
-        {title}
+        <span className={accent === "teal" ? "text-teal-400" : "text-amber-400"}>{title}</span>
+        {toggle && (
+          <label className="flex items-center gap-1.5 text-[10px] font-normal uppercase tracking-wider text-neutral-500 cursor-pointer normal-case">
+            <input
+              type="checkbox"
+              checked={toggle.checked}
+              onChange={(e) => toggle.onChange(e.target.checked)}
+              className="cursor-pointer accent-teal-500"
+            />
+            {toggle.label}
+          </label>
+        )}
       </div>
 
       <div className="overflow-x-auto">
@@ -227,6 +237,7 @@ export function BudgetPanel({
                 onChange={(v) => onUpdate(i, v)}
                 onDelete={() => onDelete(i)}
                 detailWidth={detailWidth}
+                kursList={kursList}
               />
             ))}
             <tr>

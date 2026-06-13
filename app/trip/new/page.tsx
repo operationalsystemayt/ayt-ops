@@ -1,14 +1,27 @@
 "use client";
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { tripApi } from "@/lib/trip/api";
 import { rabStorage } from "@/lib/rab/storage";
-import { NumericInput, Button, FormField, SectionHeader } from "@/components/ui";
+import { NumericInput, TextInput, Select, Button, FormField, SectionHeader } from "@/components/ui";
 import type { RabMaster } from "@/types/rab";
+import type { TripCategory, TripType } from "@/types/trip";
 import { n } from "@/lib/rab/calculations";
 
 export default function NewTripPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-neutral-950" />}>
+      <NewTripPageInner />
+    </Suspense>
+  );
+}
+
+function NewTripPageInner() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const isPrivate = searchParams.get("type") === "private";
+  const tripType: TripType = isPrivate ? "private_trip" : "open_trip";
+
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [rabList, setRabList] = useState<RabMaster[]>([]);
@@ -19,7 +32,10 @@ export default function NewTripPage() {
     rab_master_id: "",
     tgl_berangkat: "",
     jumlah_hari: 6,
+    jumlah_malam: 5,
     total_pax: 16,
+    trip_category: "domestik" as TripCategory,
+    negara: "",
   });
 
   const tgl_pulang = form.tgl_berangkat
@@ -46,6 +62,7 @@ export default function NewTripPage() {
       ...f,
       rab_master_id: id,
       jumlah_hari:  n(rab.header.jumlah_hari)  || f.jumlah_hari,
+      jumlah_malam: n(rab.header.jumlah_malam) || f.jumlah_malam,
       total_pax:    n(rab.header.jumlah_pax)   || f.total_pax,
     }));
   };
@@ -63,6 +80,10 @@ export default function NewTripPage() {
         tgl_berangkat:  form.tgl_berangkat,
         tgl_pulang,
         total_pax:      form.total_pax,
+        jumlah_malam:   form.jumlah_malam,
+        trip_category:  form.trip_category,
+        negara:         form.negara || undefined,
+        trip_type:      tripType,
       });
       router.push(`/trip/${trip.id}`);
     } catch (e: any) {
@@ -73,7 +94,7 @@ export default function NewTripPage() {
   };
 
   const selectedRab = rabList.find((r) => r.id === form.rab_master_id);
-  const kurs       = selectedRab ? n(selectedRab.header.kurs)       : 0;
+  const kurs       = selectedRab ? n(selectedRab.header.kurs_list?.[0]?.value) : 0;
   const hargaJual  = selectedRab ? n(selectedRab.harga_jual as any) : 0;
 
   return (
@@ -84,7 +105,7 @@ export default function NewTripPage() {
         </button>
 
         <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-5">
-          <SectionHeader>Buat Open Trip</SectionHeader>
+          <SectionHeader>{isPrivate ? "Buat Private Trip" : "Buat Open Trip"}</SectionHeader>
 
           <div className="flex flex-col gap-4">
             <FormField label="Nama Open Trip">
@@ -144,9 +165,30 @@ export default function NewTripPage() {
               </p>
             )}
 
-            <FormField label="Total Pax">
-              <NumericInput value={form.total_pax} onChange={set("total_pax")} />
-            </FormField>
+            <div className="grid grid-cols-2 gap-4">
+              <FormField label="Jumlah Malam">
+                <NumericInput value={form.jumlah_malam} onChange={set("jumlah_malam")} />
+              </FormField>
+              <FormField label="Total Pax">
+                <NumericInput value={form.total_pax} onChange={set("total_pax")} />
+              </FormField>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <FormField label="Domestik / Internasional">
+                <Select
+                  value={form.trip_category}
+                  onChange={(v) => set("trip_category")(v as TripCategory)}
+                  options={[
+                    { value: "domestik", label: "Domestik" },
+                    { value: "internasional", label: "Internasional" },
+                  ]}
+                />
+              </FormField>
+              <FormField label="Negara">
+                <TextInput value={form.negara} onChange={set("negara")} placeholder="cth: Jepang" />
+              </FormField>
+            </div>
 
             {error && (
               <div className="bg-red-950/40 border border-red-800/50 rounded-lg px-4 py-3 text-sm text-red-400">

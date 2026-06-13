@@ -156,11 +156,11 @@ export function RabRealisasi({ tripId, tripName, totalPax, rabMasterId }: Props)
     const rabPax = Math.max(n(rab.header.jumlah_pax), 1);
     if (rc.tiket_tl_final > 0) {
       const ref = rc.tiket_tl_final / rabPax;
-      items.push({ id: "__tiket_tl__", label: "Tiket TL", refValue: ref, value: String(Math.round(ref)), section: "tl" });
+      items.push({ id: "__tiket_tl__", label: "Tiket Tour Leader", refValue: ref, value: String(Math.round(ref)), section: "tl" });
     }
     if (rc.hotel_tl_final > 0) {
       const ref = rc.hotel_tl_final / rabPax;
-      items.push({ id: "__hotel_tl__", label: "Hotel TL", refValue: ref, value: String(Math.round(ref)), section: "tl" });
+      items.push({ id: "__hotel_tl__", label: "Hotel Tour Leader", refValue: ref, value: String(Math.round(ref)), section: "tl" });
     }
     rab.tl_rows.forEach((row, i) => {
       if (!row.detail) return;
@@ -608,7 +608,7 @@ export function RabRealisasi({ tripId, tripName, totalPax, rabMasterId }: Props)
                   {tlItems.length > 0 && (
                     <tr className="bg-neutral-800/50">
                       <td colSpan={5} className="px-3 py-1.5 text-[9px] font-semibold uppercase tracking-widest text-neutral-500">
-                        Beban TL
+                        Beban Tour Leader
                       </td>
                     </tr>
                   )}
@@ -627,7 +627,7 @@ export function RabRealisasi({ tripId, tripName, totalPax, rabMasterId }: Props)
                   {/* ── Total Beban TL ── */}
                   {tlItems.length > 0 && (
                     <tr className="bg-neutral-800/20 font-semibold">
-                      <td className="px-3 py-1.5 text-neutral-400" colSpan={2}>Total Beban TL</td>
+                      <td className="px-3 py-1.5 text-neutral-400" colSpan={2}>Total Beban Tour Leader</td>
                       <td className="px-3 py-1.5 text-right text-neutral-400">
                         {fmtIDR(workPax > 0 ? workTlTotal / workPax : 0)}
                       </td>
@@ -646,7 +646,7 @@ export function RabRealisasi({ tripId, tripName, totalPax, rabMasterId }: Props)
                         </button>
                         <button onClick={() => addCustomItem("tl")}
                           className="text-[11px] text-amber-500 hover:text-amber-300 transition-colors cursor-pointer">
-                          + Tambah ke TL
+                          + Tambah ke Tour Leader
                         </button>
                       </div>
                     </td>

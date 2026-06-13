@@ -13,6 +13,9 @@ export default function Home() {
           <Link href="/trip" className="px-6 py-3 rounded-xl border border-neutral-700 text-neutral-300 font-semibold text-sm hover:border-teal-500 hover:text-teal-400 transition-colors">
             Open Trip
           </Link>
+          <Link href="/trip?type=private" className="px-6 py-3 rounded-xl border border-neutral-700 text-neutral-300 font-semibold text-sm hover:border-teal-500 hover:text-teal-400 transition-colors">
+            Private Trip
+          </Link>
         </div>
       </div>
     </div>

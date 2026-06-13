@@ -14,6 +14,8 @@ import { ManifestVisa } from "@/components/trip/tabs/ManifestVisa";
 import { ManifestItinerary } from "@/components/trip/tabs/ManifestItinerary";
 import { ManifestAsuransi } from "@/components/trip/tabs/ManifestAsuransi";
 import { RabRealisasi } from "@/components/trip/tabs/RabRealisasi";
+import { rabStorage } from "@/lib/rab/storage";
+import type { RabMaster } from "@/types/rab";
 import type { Trip, TripStatus } from "@/types/trip";
 import { clsx } from "clsx";
 
@@ -52,9 +54,12 @@ export default function TripDetailPage() {
   const [loading, setLoading]         = useState(true);
   const [activeTab, setActiveTab]     = useState<string>("2a");
   const [statusUpdating, setStatusUpdating] = useState(false);
+  const [rabList, setRabList] = useState<RabMaster[]>([]);
+  const [rabUpdating, setRabUpdating] = useState(false);
 
   useEffect(() => {
     tripApi.get(id).then(setTrip).catch(() => router.push("/trip")).finally(() => setLoading(false));
+    rabStorage.list().then(setRabList).catch(() => setRabList([]));
   }, [id]);
 
   if (loading) return <div className="min-h-screen bg-neutral-950 flex items-center justify-center"><Spinner /></div>;
@@ -106,6 +111,32 @@ export default function TripDetailPage() {
                     <option key={s} value={s} className="bg-neutral-900 text-neutral-100">{s}</option>
                   ))}
                 </select>
+                <label className="flex items-center gap-1.5 text-xs text-neutral-500">
+                  RAB Master:
+                  <select
+                    value={trip.rab_master_id ?? ""}
+                    disabled={rabUpdating}
+                    onChange={async (e) => {
+                      const next = e.target.value || undefined;
+                      const prev = trip.rab_master_id;
+                      setTrip(t => t ? { ...t, rab_master_id: next } : t);
+                      setRabUpdating(true);
+                      try {
+                        await tripApi.update(id, { rab_master_id: next });
+                      } catch {
+                        setTrip(t => t ? { ...t, rab_master_id: prev } : t);
+                      } finally {
+                        setRabUpdating(false);
+                      }
+                    }}
+                    className="rounded-lg bg-neutral-900 border border-neutral-700 px-2 py-1 text-xs text-neutral-300 focus:outline-none focus:border-[#37bea3] transition-colors cursor-pointer disabled:opacity-60"
+                  >
+                    <option value="">— Tidak ada —</option>
+                    {rabList.map((r) => (
+                      <option key={r.id} value={r.id}>{r.header.nama}</option>
+                    ))}
+                  </select>
+                </label>
               </div>
             </div>
           </div>

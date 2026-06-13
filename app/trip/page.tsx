@@ -1,6 +1,7 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { tripApi, remindersApi } from "@/lib/trip/api";
 import { Button, Badge, Spinner } from "@/components/ui";
 import type { Trip, PaymentSchedule } from "@/types/trip";
@@ -23,16 +24,29 @@ function urgencyVariant(days: number): "danger" | "warning" {
 }
 
 export default function TripDashboard() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-neutral-950" />}>
+      <TripDashboardInner />
+    </Suspense>
+  );
+}
+
+function TripDashboardInner() {
+  const searchParams = useSearchParams();
+  const isPrivate = searchParams.get("type") === "private";
+  const tripType = isPrivate ? "private_trip" : "open_trip";
+
   const [trips, setTrips] = useState<Trip[]>([]);
   const [reminders, setReminders] = useState<PaymentSchedule[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState("");
 
   useEffect(() => {
-    Promise.all([tripApi.list(statusFilter || undefined), remindersApi.upcoming()])
+    setLoading(true);
+    Promise.all([tripApi.list(statusFilter || undefined, tripType), remindersApi.upcoming()])
       .then(([t, r]) => { setTrips(t); setReminders(r); })
       .finally(() => setLoading(false));
-  }, [statusFilter]);
+  }, [statusFilter, tripType]);
 
   const statuses = ["", "draft", "confirmed", "ongoing", "done", "cancelled"];
 
@@ -42,10 +56,10 @@ export default function TripDashboard() {
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-xl font-bold text-neutral-100">Open Trip</h1>
+            <h1 className="text-xl font-bold text-neutral-100">{isPrivate ? "Private Trip" : "Open Trip"}</h1>
             <p className="text-xs text-neutral-500 mt-0.5">Kelola semua perjalanan</p>
           </div>
-          <Link href="/trip/new">
+          <Link href={isPrivate ? "/trip/new?type=private" : "/trip/new"}>
             <Button variant="primary" size="sm">+ Buat Trip</Button>
           </Link>
         </div>
