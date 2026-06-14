@@ -1,5 +1,8 @@
 // lib/rab/calculations.ts
-import type { RabMaster, RabItem, RabComputed, DivisorType, KursEntry } from "@/types/rab";
+import type { RabMaster, RabItem, RabComputed, DivisorType } from "@/types/rab";
+import { getKursValue, type KursEntry } from "@/lib/kurs";
+
+export { getKursValue } from "@/lib/kurs";
 
 export function n(val: number | "" | undefined | null): number {
   if (val === "" || val === null || val === undefined) return 0;
@@ -19,12 +22,6 @@ function evalFormula(formula: string, biaya: number): number {
   } catch {
     return 0;
   }
-}
-
-export function getKursValue(kursList: KursEntry[] | undefined, kurs_id: string | null | undefined): number {
-  if (!kurs_id || !kursList) return 1;
-  const entry = kursList.find((k) => k.id === kurs_id);
-  return entry ? (n(entry.value) || 1) : 1;
 }
 
 export function applyDivisor(

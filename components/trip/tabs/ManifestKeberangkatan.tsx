@@ -50,13 +50,18 @@ interface FlightInfoForm {
   tgl_pulang_flight: string;
   jam_pulang: string;
   bagasi_kabin_kg: string;
-  bagasi_checkin_kg: string;
+  terminal: string;
+  transit_berangkat: string;
+  transit_pulang: string;
+  bagasi_checkin_berangkat_kg: string;
+  bagasi_checkin_pulang_kg: string;
   // Booking / pemesanan (shared across all groups in one upload)
   tgl_pemesanan: string;
   limit_pembayaran: string;
   pemesanan: string;
   agent: string;
-  harga_tiket: string;
+  harga_tiket_berangkat: string;
+  harga_tiket_pulang: string;
   klien: string;
 }
 
@@ -64,8 +69,11 @@ function uid() { return Math.random().toString(36).slice(2, 10); }
 const blankFlight = (): FlightInfoForm => ({
   maskapai: "", rute_berangkat: "", tgl_berangkat_flight: "", jam_berangkat: "",
   rute_pulang: "", tgl_pulang_flight: "", jam_pulang: "",
-  bagasi_kabin_kg: "", bagasi_checkin_kg: "",
-  tgl_pemesanan: "", limit_pembayaran: "", pemesanan: "", agent: "", harga_tiket: "", klien: "",
+  bagasi_kabin_kg: "",
+  terminal: "", transit_berangkat: "", transit_pulang: "",
+  bagasi_checkin_berangkat_kg: "", bagasi_checkin_pulang_kg: "",
+  tgl_pemesanan: "", limit_pembayaran: "", pemesanan: "", agent: "",
+  harga_tiket_berangkat: "", harga_tiket_pulang: "", klien: "",
 });
 const newRow = (): PesertaRow => ({ _key: uid(), no_etiket: "", peserta_id: "" });
 const newGroup = (): BookingGroupForm => ({ _key: uid(), kode_booking: "", unit: "", rows: [newRow()] });
@@ -129,13 +137,18 @@ export function ManifestKeberangkatan({ tripId }: Props) {
     tgl_pulang_flight:    flight.tgl_pulang_flight    || undefined,
     jam_pulang:           flight.jam_pulang           || undefined,
     bagasi_kabin_kg:      flight.bagasi_kabin_kg   ? parseFloat(flight.bagasi_kabin_kg)   : undefined,
-    bagasi_checkin_kg:    flight.bagasi_checkin_kg ? parseFloat(flight.bagasi_checkin_kg) : undefined,
+    terminal:             flight.terminal          || undefined,
+    transit_berangkat:    flight.transit_berangkat || undefined,
+    transit_pulang:       flight.transit_pulang    || undefined,
+    bagasi_checkin_berangkat_kg: flight.bagasi_checkin_berangkat_kg ? parseFloat(flight.bagasi_checkin_berangkat_kg) : undefined,
+    bagasi_checkin_pulang_kg:    flight.bagasi_checkin_pulang_kg    ? parseFloat(flight.bagasi_checkin_pulang_kg)    : undefined,
     // Pemesanan fields (shared)
     tgl_pemesanan:        flight.tgl_pemesanan    || undefined,
     limit_pembayaran:     flight.limit_pembayaran || undefined,
     pemesanan:            flight.pemesanan        || undefined,
     agent:                flight.agent            || undefined,
-    harga_tiket:          flight.harga_tiket      ? parseFloat(flight.harga_tiket) : undefined,
+    harga_tiket_berangkat: flight.harga_tiket_berangkat ? parseFloat(flight.harga_tiket_berangkat) : undefined,
+    harga_tiket_pulang:    flight.harga_tiket_pulang    ? parseFloat(flight.harga_tiket_pulang)    : undefined,
     klien:                flight.klien            || undefined,
   });
 
@@ -191,7 +204,11 @@ export function ManifestKeberangkatan({ tripId }: Props) {
         tgl_pulang_flight:    result.tgl_pulang        || f.tgl_pulang_flight,
         jam_pulang:           result.jam_pulang        || f.jam_pulang,
         bagasi_kabin_kg:      result.bagasi_kabin_kg   > 0 ? String(result.bagasi_kabin_kg)   : f.bagasi_kabin_kg,
-        bagasi_checkin_kg:    result.bagasi_checkin_kg > 0 ? String(result.bagasi_checkin_kg) : f.bagasi_checkin_kg,
+        terminal:             result.terminal          || f.terminal,
+        transit_berangkat:    result.transit_berangkat || f.transit_berangkat,
+        transit_pulang:       result.transit_pulang    || f.transit_pulang,
+        bagasi_checkin_berangkat_kg: result.bagasi_checkin_berangkat_kg > 0 ? String(result.bagasi_checkin_berangkat_kg) : (result.bagasi_checkin_kg > 0 ? String(result.bagasi_checkin_kg) : f.bagasi_checkin_berangkat_kg),
+        bagasi_checkin_pulang_kg:    result.bagasi_checkin_pulang_kg    > 0 ? String(result.bagasi_checkin_pulang_kg)    : (result.bagasi_checkin_kg > 0 ? String(result.bagasi_checkin_kg) : f.bagasi_checkin_pulang_kg),
       }));
 
       // Build booking groups from OCR
@@ -296,12 +313,17 @@ export function ManifestKeberangkatan({ tripId }: Props) {
       tgl_pulang_flight:    k.tgl_pulang_flight    ?? "",
       jam_pulang:           k.jam_pulang           ?? "",
       bagasi_kabin_kg:      k.bagasi_kabin_kg   != null ? String(k.bagasi_kabin_kg)   : "",
-      bagasi_checkin_kg:    k.bagasi_checkin_kg != null ? String(k.bagasi_checkin_kg) : "",
+      terminal:             k.terminal          ?? "",
+      transit_berangkat:    k.transit_berangkat ?? "",
+      transit_pulang:       k.transit_pulang    ?? "",
+      bagasi_checkin_berangkat_kg: k.bagasi_checkin_berangkat_kg != null ? String(k.bagasi_checkin_berangkat_kg) : "",
+      bagasi_checkin_pulang_kg:    k.bagasi_checkin_pulang_kg    != null ? String(k.bagasi_checkin_pulang_kg)    : "",
       tgl_pemesanan:        k.tgl_pemesanan    ?? "",
       limit_pembayaran:     k.limit_pembayaran ?? "",
       pemesanan:            k.pemesanan        ?? "",
       agent:                k.agent            ?? "",
-      harga_tiket:          k.harga_tiket != null ? String(k.harga_tiket) : "",
+      harga_tiket_berangkat: k.harga_tiket_berangkat != null ? String(k.harga_tiket_berangkat) : "",
+      harga_tiket_pulang:    k.harga_tiket_pulang    != null ? String(k.harga_tiket_pulang)    : "",
       klien:                k.klien            ?? "",
     });
     setGroups([{
@@ -418,6 +440,14 @@ export function ManifestKeberangkatan({ tripId }: Props) {
                     <input type="time" value={flight.jam_berangkat} onChange={e => setF("jam_berangkat")(e.target.value)} className={inp} />
                   </div>
                   <div>
+                    <label className={lbl}>Terminal</label>
+                    <input value={flight.terminal} onChange={e => setF("terminal")(e.target.value)} placeholder="Terminal 3" className={inp} />
+                  </div>
+                  <div>
+                    <label className={lbl}>Transit Berangkat</label>
+                    <input value={flight.transit_berangkat} onChange={e => setF("transit_berangkat")(e.target.value)} placeholder="— (langsung)" className={inp} />
+                  </div>
+                  <div>
                     <label className={lbl}>Rute Pulang</label>
                     <input value={flight.rute_pulang} onChange={e => setF("rute_pulang")(e.target.value)} placeholder="NRT-MNL-CGK" className={inp} />
                   </div>
@@ -430,12 +460,20 @@ export function ManifestKeberangkatan({ tripId }: Props) {
                     <input type="time" value={flight.jam_pulang} onChange={e => setF("jam_pulang")(e.target.value)} className={inp} />
                   </div>
                   <div>
+                    <label className={lbl}>Transit Pulang</label>
+                    <input value={flight.transit_pulang} onChange={e => setF("transit_pulang")(e.target.value)} placeholder="— (langsung)" className={inp} />
+                  </div>
+                  <div>
                     <label className={lbl}>Bagasi Kabin (kg)</label>
                     <FormattedInput value={flight.bagasi_kabin_kg} onChange={setF("bagasi_kabin_kg")} placeholder="7" className={inp} />
                   </div>
                   <div>
-                    <label className={lbl}>Bagasi Check-in (kg)</label>
-                    <FormattedInput value={flight.bagasi_checkin_kg} onChange={setF("bagasi_checkin_kg")} placeholder="30" className={inp} />
+                    <label className={lbl}>Bagasi Check-in Berangkat (kg)</label>
+                    <FormattedInput value={flight.bagasi_checkin_berangkat_kg} onChange={setF("bagasi_checkin_berangkat_kg")} placeholder="30" className={inp} />
+                  </div>
+                  <div>
+                    <label className={lbl}>Bagasi Check-in Pulang (kg)</label>
+                    <FormattedInput value={flight.bagasi_checkin_pulang_kg} onChange={setF("bagasi_checkin_pulang_kg")} placeholder="30" className={inp} />
                   </div>
 
                   {/* Pemesanan fields — shared across all kode booking */}
@@ -456,8 +494,17 @@ export function ManifestKeberangkatan({ tripId }: Props) {
                     <input value={flight.agent} onChange={e => setF("agent")(e.target.value)} placeholder="nama agen" className={inp} />
                   </div>
                   <div>
-                    <label className={lbl}>Harga Tiket (Rp)</label>
-                    <FormattedInput value={flight.harga_tiket} onChange={setF("harga_tiket")} placeholder="0" className={inp} />
+                    <label className={lbl}>Harga Tiket Berangkat (Rp)</label>
+                    <FormattedInput value={flight.harga_tiket_berangkat} onChange={setF("harga_tiket_berangkat")} placeholder="0" className={inp} />
+                  </div>
+                  <div>
+                    <label className={lbl}>Harga Tiket Pulang (Rp)</label>
+                    <FormattedInput value={flight.harga_tiket_pulang} onChange={setF("harga_tiket_pulang")} placeholder="0" className={inp} />
+                  </div>
+                  <div>
+                    <label className={lbl}>Total Harga Tiket (Rp)</label>
+                    <input value={fmtCurrency((parseFloat(flight.harga_tiket_berangkat) || 0) + (parseFloat(flight.harga_tiket_pulang) || 0))}
+                      disabled className={clsx(inp, "opacity-60 cursor-not-allowed")} />
                   </div>
                   <div>
                     <label className={lbl}>Klien</label>
@@ -587,7 +634,7 @@ export function ManifestKeberangkatan({ tripId }: Props) {
         <table className="w-full">
           <thead>
             <tr className="border-b border-neutral-800">
-              {["No","Tgl Pesan","Pemesan","Agent","Limit Bayar","Harga Tiket",
+              {["Preview","No","Tgl Pesan","Pemesan","Agent","Limit Bayar","Harga Tiket",
                 "Kode Booking","Unit","E-Tiket No","Title","Nama","Klien",""].map((h, i) => (
                 <th key={i} className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wider text-neutral-600 whitespace-nowrap">{h}</th>
               ))}
@@ -595,10 +642,19 @@ export function ManifestKeberangkatan({ tripId }: Props) {
           </thead>
           <tbody className="divide-y divide-neutral-800/50">
             {list.length === 0 && (
-              <tr><td colSpan={13} className="px-4 py-8 text-center text-xs text-neutral-600">Belum ada data tiket</td></tr>
+              <tr><td colSpan={14} className="px-4 py-8 text-center text-xs text-neutral-600">Belum ada data tiket</td></tr>
             )}
             {list.map((k, i) => (
               <tr key={k.id} className="group hover:bg-white/[0.02] transition-colors">
+                <td className="px-3 py-2 text-xs">
+                  {k.tiket_drive_file_id ? (
+                    <a href={`https://drive.google.com/file/d/${k.tiket_drive_file_id}/view`}
+                      target="_blank" rel="noopener noreferrer"
+                      className="text-teal-500 hover:text-teal-300 transition-colors" title="Lihat tiket">📄</a>
+                  ) : (
+                    <span className="text-neutral-700" title="Tiket belum upload">📄</span>
+                  )}
+                </td>
                 <td className="px-3 py-2 text-xs text-neutral-500">{i + 1}</td>
                 <td className="px-3 py-2 text-xs text-neutral-400 whitespace-nowrap">{fmtDate(k.tgl_pemesanan)}</td>
                 <td className="px-3 py-2 text-xs text-neutral-400">{k.pemesanan ?? "—"}</td>
@@ -615,11 +671,6 @@ export function ManifestKeberangkatan({ tripId }: Props) {
                 <td className="px-3 py-2 text-xs text-neutral-400">{k.klien ?? "—"}</td>
                 <td className="px-3 py-2">
                   <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                    {k.tiket_drive_file_id && (
-                      <a href={`https://drive.google.com/file/d/${k.tiket_drive_file_id}/view`}
-                        target="_blank" rel="noopener noreferrer"
-                        className="text-[10px] text-teal-500 hover:text-teal-300 cursor-pointer" title="Lihat tiket">📄</a>
-                    )}
                     <button onClick={() => startEdit(k)}
                       className="text-[10px] text-neutral-500 hover:text-teal-400 cursor-pointer">edit</button>
                     <button onClick={() => handleDelete(k.id!)}

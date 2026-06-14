@@ -1,11 +1,13 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
-import { transportasiApi } from "@/lib/trip/api";
+import { transportasiApi, tripApi } from "@/lib/trip/api";
 import { Button, FormattedInput } from "@/components/ui";
 import type { ManifestTransportasi, TransportasiOCRResult } from "@/types/trip";
+import { getKursValue, type KursEntry } from "@/lib/kurs";
 import { clsx } from "clsx";
 
 const inp = "w-full rounded-lg bg-neutral-900 border border-neutral-700 px-2 py-1.5 text-xs text-neutral-100 placeholder-neutral-600 focus:outline-none focus:border-teal-500 transition-colors";
+const sel = "w-full rounded-lg bg-neutral-900 border border-neutral-700 px-2 py-1.5 text-xs text-neutral-100 focus:outline-none focus:border-teal-500 transition-colors";
 const lbl = "block text-[10px] text-neutral-500 uppercase tracking-wide mb-1";
 
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -48,6 +50,7 @@ interface ShinRow {
   qty: string;
   harga_jpy: string;
   harga_idr: string;
+  kurs_id: string;
   waktu_pembayaran: string;
 }
 
@@ -61,6 +64,18 @@ interface LokalRow {
   harga_jpy: string;
   harga_satuan: string;
   harga_idr: string;
+  kurs_id: string;
+  waktu_pembayaran: string;
+}
+
+interface IcocaRow {
+  _key: string;
+  id?: string;
+  nama: string;
+  qty: string;
+  harga_jpy: string;
+  harga_idr: string;
+  kurs_id: string;
   waktu_pembayaran: string;
 }
 
@@ -72,6 +87,7 @@ function newShinRow(template?: { kategori_usia: string; aturan_harga: string }):
     qty: "",
     harga_jpy: "",
     harga_idr: "",
+    kurs_id: "",
     waktu_pembayaran: "",
   };
 }
@@ -86,6 +102,19 @@ function newLokalRow(): LokalRow {
     harga_jpy: "",
     harga_satuan: "",
     harga_idr: "",
+    kurs_id: "",
+    waktu_pembayaran: "",
+  };
+}
+
+function newIcocaRow(totalPax?: number): IcocaRow {
+  return {
+    _key: uid(),
+    nama: "",
+    qty: totalPax ? String(totalPax) : "",
+    harga_jpy: "",
+    harga_idr: "",
+    kurs_id: "",
     waktu_pembayaran: "",
   };
 }
@@ -100,15 +129,16 @@ export function ManifestTransportasi({ tripId }: Props) {
   const [list, setList]       = useState<ManifestTransportasi[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
-  const [formMode, setFormMode] = useState<"SHINKANSEN" | "LOKAL">("SHINKANSEN");
+  const [formMode, setFormMode] = useState<"SHINKANSEN" | "LOKAL" | "ICOCA_SUICA">("SHINKANSEN");
 
-  // Shared kurs (same for all shinkansen rows, and optionally lokal)
-  const [shinKurs, setShinKurs] = useState("");
-  const [lokalKurs, setLokalKurs] = useState("");
+  // Multi-kurs list (shared across shinkansen / lokal / icoca-suica rows)
+  const [kursList, setKursList] = useState<KursEntry[]>([]);
+  const [totalPax, setTotalPax] = useState<number | undefined>(undefined);
 
   // Form state
   const [shinRows, setShinRows]   = useState<ShinRow[]>(defaultShinRows());
   const [lokalRows, setLokalRows] = useState<LokalRow[]>([newLokalRow()]);
+  const [icocaRows, setIcocaRows] = useState<IcocaRow[]>([newIcocaRow()]);
 
   // File / upload state
   const [notaFile, setNotaFile]         = useState<File | null>(null);
@@ -127,39 +157,45 @@ export function ManifestTransportasi({ tripId }: Props) {
   const load = () =>
     transportasiApi.list(tripId).then(setList).finally(() => setLoading(false));
 
-  useEffect(() => { load(); }, [tripId]);
+  useEffect(() => {
+    load();
+    tripApi.get(tripId).then(t => {
+      setKursList(t.transportasi_kurs_list ?? []);
+      setTotalPax(t.total_pax);
+      setIcocaRows(rows => rows.map(r => r.qty === "" ? { ...r, qty: t.total_pax ? String(t.total_pax) : "" } : r));
+    }).catch(() => {});
+  }, [tripId]);
+
+  // ── Kurs list management ─────────────────────────────────────────────────────
+
+  const saveKursList = (next: KursEntry[]) => {
+    setKursList(next);
+    tripApi.update(tripId, { transportasi_kurs_list: next }).catch(() => {});
+  };
+
+  const addKurs = () => saveKursList([...kursList, { id: uid(), label: "Kurs baru", value: "" }]);
+  const updKurs = (i: number, patch: Partial<KursEntry>) =>
+    saveKursList(kursList.map((k, j) => j === i ? { ...k, ...patch } : k));
+  const delKurs = (i: number) => saveKursList(kursList.filter((_, j) => j !== i));
 
   // ── Shinkansen row helpers ───────────────────────────────────────────────────
 
   const setShin = (i: number, patch: Partial<ShinRow>) =>
     setShinRows(rows => rows.map((r, j) => j === i ? { ...r, ...patch } : r));
 
-  // Auto-compute harga_idr when qty, harga_jpy, or shinKurs changes
+  // Auto-compute harga_idr when qty, harga_jpy, or kurs_id changes
   const handleShinChange = (i: number, field: keyof ShinRow, val: string) => {
     setShinRows(rows => rows.map((r, j) => {
       if (j !== i) return r;
       const updated = { ...r, [field]: val };
       const qty = parseFloat(field === "qty" ? val : r.qty) || 0;
       const jpy = parseFloat(field === "harga_jpy" ? val : r.harga_jpy) || 0;
-      const kurs = parseFloat(shinKurs) || 0;
+      const kursId = field === "kurs_id" ? val : r.kurs_id;
+      const kurs = getKursValue(kursList, kursId);
       if (qty > 0 && jpy > 0 && kurs > 0) {
         updated.harga_idr = String(Math.round(qty * jpy * kurs));
       }
       return updated;
-    }));
-  };
-
-  // Recompute all shin harga_idr when shinKurs changes
-  const handleShinKursChange = (val: string) => {
-    setShinKurs(val);
-    const kurs = parseFloat(val) || 0;
-    setShinRows(rows => rows.map(r => {
-      const qty = parseFloat(r.qty) || 0;
-      const jpy = parseFloat(r.harga_jpy) || 0;
-      if (qty > 0 && jpy > 0 && kurs > 0) {
-        return { ...r, harga_idr: String(Math.round(qty * jpy * kurs)) };
-      }
-      return r;
     }));
   };
 
@@ -176,29 +212,38 @@ export function ManifestTransportasi({ tripId }: Props) {
     setLokalRows(rows => rows.map((r, j) => {
       if (j !== i) return r;
       const updated = { ...r, [field]: val };
-      if (field === "harga_jpy") {
-        const jpy = parseFloat(val) || 0;
-        const kurs = parseFloat(lokalKurs) || 0;
-        if (jpy > 0 && kurs > 0) {
-          updated.harga_idr = String(Math.round(jpy * kurs));
-        }
+      const jpy = parseFloat(field === "harga_jpy" ? val : r.harga_jpy) || 0;
+      const kursId = field === "kurs_id" ? val : r.kurs_id;
+      const kurs = getKursValue(kursList, kursId);
+      if (jpy > 0 && kurs > 0) {
+        updated.harga_idr = String(Math.round(jpy * kurs));
       }
       return updated;
     }));
   };
 
-  // Recompute all lokal harga_idr when lokalKurs changes
-  const handleLokalKursChange = (val: string) => {
-    setLokalKurs(val);
-    const kurs = parseFloat(val) || 0;
-    setLokalRows(rows => rows.map(r => {
-      const jpy = parseFloat(r.harga_jpy) || 0;
-      if (jpy > 0 && kurs > 0) {
-        return { ...r, harga_idr: String(Math.round(jpy * kurs)) };
+  // ── ICOCA/SUICA row helpers ──────────────────────────────────────────────────
+
+  const addIcocaRow = () => setIcocaRows(rows => [...rows, newIcocaRow(totalPax)]);
+  const removeIcocaRow = (i: number) =>
+    setIcocaRows(rows => rows.length > 1 ? rows.filter((_, j) => j !== i) : rows);
+
+  const handleIcocaChange = (i: number, field: keyof IcocaRow, val: string) => {
+    setIcocaRows(rows => rows.map((r, j) => {
+      if (j !== i) return r;
+      const updated = { ...r, [field]: val };
+      const qty = parseFloat(field === "qty" ? val : r.qty) || 0;
+      const jpy = parseFloat(field === "harga_jpy" ? val : r.harga_jpy) || 0;
+      const kursId = field === "kurs_id" ? val : r.kurs_id;
+      const kurs = getKursValue(kursList, kursId);
+      if (qty > 0 && jpy > 0 && kurs > 0) {
+        updated.harga_idr = String(Math.round(qty * jpy * kurs));
       }
-      return r;
+      return updated;
     }));
   };
+  const setIcoca = (i: number, patch: Partial<IcocaRow>) =>
+    setIcocaRows(rows => rows.map((r, j) => j === i ? { ...r, ...patch } : r));
 
   // ── Select nota file ─────────────────────────────────────────────────────────
   const handleSelectNota = (file: File) => {
@@ -220,6 +265,16 @@ export function ManifestTransportasi({ tripId }: Props) {
       fd.append("file", notaFile);
       const result: TransportasiOCRResult = await transportasiApi.ocrNota(tripId, fd);
 
+      // Find or create a kurs entry matching the given value, returns its id
+      let workingKursList = [...kursList];
+      const ensureKursEntry = (value: number, label: string): string => {
+        const existing = workingKursList.find(k => Number(k.value) === value);
+        if (existing) return existing.id;
+        const entry: KursEntry = { id: uid(), label, value };
+        workingKursList = [...workingKursList, entry];
+        return entry.id;
+      };
+
       // Fill shinkansen rows
       if (result.shinkansen && result.shinkansen.length > 0) {
         const newShin = DEFAULT_SHINKANSEN.map((def, idx) => {
@@ -227,6 +282,7 @@ export function ManifestTransportasi({ tripId }: Props) {
             ?? result.shinkansen[idx];
           if (!found) return newShinRow(def);
           const kurs = found.kurs > 0 ? found.kurs : 0;
+          const kursId = kurs > 0 ? ensureKursEntry(kurs, "Kurs Shinkansen") : "";
           const idr = found.qty > 0 && found.harga_jpy > 0 && kurs > 0
             ? Math.round(found.qty * found.harga_jpy * kurs) : 0;
           return {
@@ -236,21 +292,18 @@ export function ManifestTransportasi({ tripId }: Props) {
             qty: found.qty > 0 ? String(found.qty) : "",
             harga_jpy: found.harga_jpy > 0 ? String(found.harga_jpy) : "",
             harga_idr: idr > 0 ? String(idr) : "",
+            kurs_id: kursId,
             waktu_pembayaran: "",
           };
         });
         setShinRows(newShin);
-        // Shared kurs from first non-zero
-        const firstKurs = result.shinkansen.find(s => s.kurs > 0)?.kurs;
-        if (firstKurs) setShinKurs(String(firstKurs));
       }
 
       // Fill lokal rows
       if (result.lokal && result.lokal.length > 0) {
-        const firstLokalKurs = result.lokal.find(l => l.kurs > 0)?.kurs;
-        if (firstLokalKurs) setLokalKurs(String(firstLokalKurs));
         const newLokal = result.lokal.map(l => {
-          const kurs = l.kurs > 0 ? l.kurs : (firstLokalKurs ?? 0);
+          const kurs = l.kurs > 0 ? l.kurs : 0;
+          const kursId = kurs > 0 ? ensureKursEntry(kurs, "Kurs Lokal") : "";
           const idr = l.harga_jpy > 0 && kurs > 0 ? Math.round(l.harga_jpy * kurs) : 0;
           return {
             _key: uid(),
@@ -261,10 +314,16 @@ export function ManifestTransportasi({ tripId }: Props) {
             harga_jpy: l.harga_jpy > 0 ? String(l.harga_jpy) : "",
             harga_satuan: l.harga_satuan ?? "",
             harga_idr: idr > 0 ? String(idr) : "",
+            kurs_id: kursId,
             waktu_pembayaran: "",
           };
         });
         setLokalRows(newLokal);
+      }
+
+      if (workingKursList.length !== kursList.length) {
+        setKursList(workingKursList);
+        tripApi.update(tripId, { transportasi_kurs_list: workingKursList }).catch(() => {});
       }
 
       setMsg({ ok: true, text: `OCR selesai — ${result.shinkansen?.length ?? 0} baris shinkansen, ${result.lokal?.length ?? 0} baris lokal.` });
@@ -292,13 +351,13 @@ export function ManifestTransportasi({ tripId }: Props) {
         setUploading(false);
       }
 
-      const kurs = parseFloat(shinKurs) || undefined;
-
       // 2. Save shinkansen rows
       for (const row of shinRows) {
         const qty = parseInt(row.qty) || undefined;
         const hargaJpy = parseFloat(row.harga_jpy) || undefined;
         const hargaIdr = parseFloat(row.harga_idr) || undefined;
+        const kurs = getKursValue(kursList, row.kurs_id) || undefined;
+        const kursLabel = kursList.find(k => k.id === row.kurs_id)?.label;
 
         const payload: Partial<ManifestTransportasi> = {
           jenis: "SHINKANSEN",
@@ -309,6 +368,8 @@ export function ManifestTransportasi({ tripId }: Props) {
           harga_idr: hargaIdr,
           total_idr: hargaIdr,
           kurs,
+          kurs_id: row.kurs_id || undefined,
+          kurs_label: kursLabel,
           nota_drive_file_id: finalDriveId || undefined,
           waktu_pembayaran: row.waktu_pembayaran || undefined,
         };
@@ -321,10 +382,11 @@ export function ManifestTransportasi({ tripId }: Props) {
       }
 
       // 3. Save lokal rows
-      const loKurs = parseFloat(lokalKurs) || undefined;
       for (const row of lokalRows) {
         const hargaJpy = parseFloat(row.harga_jpy) || undefined;
         const hargaIdr = parseFloat(row.harga_idr) || undefined;
+        const kurs = getKursValue(kursList, row.kurs_id) || undefined;
+        const kursLabel = kursList.find(k => k.id === row.kurs_id)?.label;
 
         if (!row.vendor && !row.tipe_kendaraan && !row.keterangan_rute && !hargaJpy) continue;
 
@@ -338,7 +400,40 @@ export function ManifestTransportasi({ tripId }: Props) {
           harga_satuan: row.harga_satuan || undefined,
           harga_idr: hargaIdr,
           total_idr: hargaIdr,
-          kurs: loKurs,
+          kurs,
+          kurs_id: row.kurs_id || undefined,
+          kurs_label: kursLabel,
+          nota_drive_file_id: finalDriveId || undefined,
+          waktu_pembayaran: row.waktu_pembayaran || undefined,
+        };
+
+        if (row.id) {
+          await transportasiApi.update(tripId, row.id, payload);
+        } else {
+          await transportasiApi.create(tripId, payload);
+        }
+      }
+
+      // 4. Save icoca/suica rows
+      for (const row of icocaRows) {
+        const qty = parseInt(row.qty) || undefined;
+        const hargaJpy = parseFloat(row.harga_jpy) || undefined;
+        const hargaIdr = parseFloat(row.harga_idr) || undefined;
+        const kurs = getKursValue(kursList, row.kurs_id) || undefined;
+        const kursLabel = kursList.find(k => k.id === row.kurs_id)?.label;
+
+        if (!row.nama && !hargaJpy) continue;
+
+        const payload: Partial<ManifestTransportasi> = {
+          jenis: "ICOCA_SUICA",
+          kategori_usia: row.nama || undefined,
+          qty,
+          harga_jpy: hargaJpy,
+          harga_idr: hargaIdr,
+          total_idr: hargaIdr,
+          kurs,
+          kurs_id: row.kurs_id || undefined,
+          kurs_label: kursLabel,
           nota_drive_file_id: finalDriveId || undefined,
           waktu_pembayaran: row.waktu_pembayaran || undefined,
         };
@@ -374,16 +469,15 @@ export function ManifestTransportasi({ tripId }: Props) {
     setDriveFileId(null);
     setShinRows(defaultShinRows());
     setLokalRows([newLokalRow()]);
-    setShinKurs("");
-    setLokalKurs("");
+    setIcocaRows([newIcocaRow(totalPax)]);
     setShowForm(false);
   };
 
   // Start edit: pre-fill from existing rows
   const startEdit = (item: ManifestTransportasi) => {
     resetForm();
-    setFormMode(item.jenis === "SHINKANSEN" ? "SHINKANSEN" : "LOKAL");
     if (item.jenis === "SHINKANSEN") {
+      setFormMode("SHINKANSEN");
       setShinRows(prev => prev.map(r =>
         r.kategori_usia === item.kategori_usia
           ? {
@@ -392,12 +486,13 @@ export function ManifestTransportasi({ tripId }: Props) {
               qty: item.qty != null ? String(item.qty) : "",
               harga_jpy: item.harga_jpy != null ? String(item.harga_jpy) : "",
               harga_idr: item.harga_idr != null ? String(item.harga_idr) : "",
+              kurs_id: item.kurs_id ?? "",
               waktu_pembayaran: item.waktu_pembayaran ?? "",
             }
           : r
       ));
-      if (item.kurs) setShinKurs(String(item.kurs));
-    } else {
+    } else if (item.jenis === "LOKAL") {
+      setFormMode("LOKAL");
       setLokalRows([{
         _key: uid(),
         id: item.id,
@@ -408,9 +503,21 @@ export function ManifestTransportasi({ tripId }: Props) {
         harga_jpy: item.harga_jpy != null ? String(item.harga_jpy) : "",
         harga_satuan: item.harga_satuan ?? "",
         harga_idr: item.harga_idr != null ? String(item.harga_idr) : "",
+        kurs_id: item.kurs_id ?? "",
         waktu_pembayaran: item.waktu_pembayaran ?? "",
       }]);
-      if (item.kurs) setLokalKurs(String(item.kurs));
+    } else {
+      setFormMode("ICOCA_SUICA");
+      setIcocaRows([{
+        _key: uid(),
+        id: item.id,
+        nama: item.kategori_usia ?? "",
+        qty: item.qty != null ? String(item.qty) : "",
+        harga_jpy: item.harga_jpy != null ? String(item.harga_jpy) : "",
+        harga_idr: item.harga_idr != null ? String(item.harga_idr) : "",
+        kurs_id: item.kurs_id ?? "",
+        waktu_pembayaran: item.waktu_pembayaran ?? "",
+      }]);
     }
     if (item.nota_drive_file_id) setDriveFileId(item.nota_drive_file_id);
     setShowForm(true);
@@ -423,6 +530,7 @@ export function ManifestTransportasi({ tripId }: Props) {
   // Split list into sections
   const shinList = list.filter(x => x.jenis === "SHINKANSEN");
   const lokalList = list.filter(x => x.jenis === "LOKAL");
+  const icocaList = list.filter(x => x.jenis === "ICOCA_SUICA");
 
   if (loading) return <div className="p-6 text-sm text-neutral-600">Memuat...</div>;
 
@@ -430,7 +538,7 @@ export function ManifestTransportasi({ tripId }: Props) {
     <div>
       {/* ── Toolbar ─────────────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-neutral-800 flex-wrap gap-2">
-        <span className="text-xs text-neutral-400">{shinList.length} shinkansen · {lokalList.length} lokal</span>
+        <span className="text-xs text-neutral-400">{shinList.length} shinkansen · {lokalList.length} lokal · {icocaList.length} icoca/suica</span>
         <div className="flex items-center gap-2 flex-wrap">
           <input
             ref={notaRef}
@@ -524,6 +632,49 @@ export function ManifestTransportasi({ tripId }: Props) {
                 </div>
               )}
 
+              {/* ── Kurs (multi) management ──────────────────────────────── */}
+              <div className="mb-5 rounded-xl border border-neutral-700 bg-neutral-900/40 p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[10px] font-semibold uppercase tracking-widest text-neutral-500">Kurs (multi)</span>
+                  <button
+                    type="button"
+                    onClick={addKurs}
+                    className="text-xs text-teal-400 hover:text-teal-300 transition-colors cursor-pointer"
+                  >
+                    + Tambah Kurs
+                  </button>
+                </div>
+                {kursList.length === 0 ? (
+                  <p className="text-[11px] text-neutral-600">Belum ada kurs. Tambahkan kurs untuk dipakai di baris Shinkansen / Lokal / ICOCA-SUICA.</p>
+                ) : (
+                  <div className="flex flex-col gap-2">
+                    {kursList.map((k, i) => (
+                      <div key={k.id} className="flex items-center gap-2">
+                        <input
+                          value={k.label}
+                          onChange={e => updKurs(i, { label: e.target.value })}
+                          placeholder="Label kurs (cth: JPY)"
+                          className={clsx(inp, "flex-1")}
+                        />
+                        <FormattedInput
+                          value={k.value === "" ? "" : String(k.value)}
+                          onChange={v => updKurs(i, { value: v === "" ? "" : Number(v) })}
+                          placeholder="111"
+                          className={clsx(inp, "w-28")}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => delKurs(i)}
+                          className="text-neutral-600 hover:text-red-400 text-sm cursor-pointer px-1"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
               {/* ── Mode toggle ───────────────────────────────────────────── */}
               <div className="flex items-center gap-1 mb-5 bg-neutral-900 border border-neutral-700 rounded-lg p-1 w-fit">
                 <button
@@ -550,34 +701,35 @@ export function ManifestTransportasi({ tripId }: Props) {
                 >
                   Transportasi Lokal
                 </button>
+                <button
+                  type="button"
+                  onClick={() => setFormMode("ICOCA_SUICA")}
+                  className={clsx(
+                    "px-4 py-1.5 rounded-md text-xs font-medium transition-colors cursor-pointer",
+                    formMode === "ICOCA_SUICA"
+                      ? "bg-teal-700 text-white"
+                      : "text-neutral-400 hover:text-neutral-200"
+                  )}
+                >
+                  ICOCA / SUICA
+                </button>
               </div>
 
               {/* ── SHINKANSEN section ─────────────────────────────────────── */}
               {formMode === "SHINKANSEN" && (
               <div className="mb-6">
-                <div className="flex items-center gap-4 mb-3">
-                  <p className="text-[10px] font-semibold uppercase tracking-widest text-neutral-400">SHINKANSEN</p>
-                  <div className="flex items-center gap-2">
-                    <label className={lbl + " mb-0 whitespace-nowrap"}>Kurs (shared)</label>
-                    <FormattedInput
-                      value={shinKurs}
-                      onChange={handleShinKursChange}
-                      placeholder="111"
-                      className={clsx(inp, "w-24")}
-                    />
-                  </div>
-                </div>
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-neutral-400 mb-3">SHINKANSEN</p>
 
                 <div className="rounded-xl border border-neutral-700 overflow-hidden">
                   {/* Header row */}
-                  <div className="grid grid-cols-[160px_1fr_60px_100px_110px_130px] gap-2 px-3 py-1.5 bg-neutral-800/50">
-                    {["Kategori Usia","Aturan Harga","Qty","Harga OTS (¥)","Total IDR (auto)","Waktu Bayar"].map(h => (
+                  <div className="grid grid-cols-[140px_1fr_50px_100px_120px_110px_120px] gap-2 px-3 py-1.5 bg-neutral-800/50">
+                    {["Kategori Usia","Aturan Harga","Qty","Harga Dalam Kurs","Kurs","Total IDR (auto)","Waktu Bayar"].map(h => (
                       <span key={h} className="text-[9px] text-neutral-500 uppercase tracking-wide">{h}</span>
                     ))}
                   </div>
 
                   {shinRows.map((row, i) => (
-                    <div key={row._key} className="grid grid-cols-[160px_1fr_60px_100px_110px_130px] gap-2 px-3 py-2 border-t border-neutral-800/60 items-center">
+                    <div key={row._key} className="grid grid-cols-[140px_1fr_50px_100px_120px_110px_120px] gap-2 px-3 py-2 border-t border-neutral-800/60 items-center">
                       <span className="text-xs text-neutral-300 font-medium">{row.kategori_usia}</span>
                       <input
                         value={row.aturan_harga}
@@ -597,6 +749,16 @@ export function ManifestTransportasi({ tripId }: Props) {
                         placeholder="0"
                         className={inp}
                       />
+                      <select
+                        value={row.kurs_id}
+                        onChange={e => handleShinChange(i, "kurs_id", e.target.value)}
+                        className={sel}
+                      >
+                        <option value="">— Kurs —</option>
+                        {kursList.map(k => (
+                          <option key={k.id} value={k.id}>{k.label} ({k.value || "—"})</option>
+                        ))}
+                      </select>
                       <FormattedInput
                         value={row.harga_idr}
                         onChange={v => setShin(i, { harga_idr: v })}
@@ -618,20 +780,7 @@ export function ManifestTransportasi({ tripId }: Props) {
               {/* ── TRANSPORTASI LOKAL section ─────────────────────────────── */}
               {formMode === "LOKAL" && (
               <div>
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-4">
-                    <p className="text-[10px] font-semibold uppercase tracking-widest text-neutral-400">TRANSPORTASI LOKAL</p>
-                    <div className="flex items-center gap-2">
-                      <label className={lbl + " mb-0 whitespace-nowrap"}>Kurs (shared)</label>
-                      <FormattedInput
-                        value={lokalKurs}
-                        onChange={handleLokalKursChange}
-                        placeholder="111"
-                        className={clsx(inp, "w-24")}
-                      />
-                    </div>
-                  </div>
-                </div>
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-neutral-400 mb-3">TRANSPORTASI LOKAL</p>
 
                 <div className="space-y-2">
                   {lokalRows.map((row, i) => (
@@ -676,7 +825,7 @@ export function ManifestTransportasi({ tripId }: Props) {
                       </div>
                       <div className="flex items-start gap-2 mt-2 flex-wrap">
                         <div className="w-28">
-                          <label className={lbl}>Harga JPY (¥)</label>
+                          <label className={lbl}>Harga Dalam Kurs</label>
                           <FormattedInput
                             value={row.harga_jpy}
                             onChange={v => handleLokalChange(i, "harga_jpy", v)}
@@ -692,6 +841,19 @@ export function ManifestTransportasi({ tripId }: Props) {
                             placeholder="18000 & 13000"
                             className={inp}
                           />
+                        </div>
+                        <div className="w-32">
+                          <label className={lbl}>Kurs</label>
+                          <select
+                            value={row.kurs_id}
+                            onChange={e => handleLokalChange(i, "kurs_id", e.target.value)}
+                            className={sel}
+                          >
+                            <option value="">— Kurs —</option>
+                            {kursList.map(k => (
+                              <option key={k.id} value={k.id}>{k.label} ({k.value || "—"})</option>
+                            ))}
+                          </select>
                         </div>
                         <div className="w-32">
                           <label className={lbl}>Total IDR (auto)</label>
@@ -728,6 +890,82 @@ export function ManifestTransportasi({ tripId }: Props) {
                   className="mt-2 w-full text-xs text-neutral-500 hover:text-teal-400 border border-dashed border-neutral-700 hover:border-teal-600 rounded-lg py-2 transition-colors cursor-pointer"
                 >
                   + Tambah Trip Lokal
+                </button>
+              </div>
+              )}
+
+              {/* ── ICOCA / SUICA section ────────────────────────────────── */}
+              {formMode === "ICOCA_SUICA" && (
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-neutral-400 mb-3">ICOCA / SUICA</p>
+
+                <div className="rounded-xl border border-neutral-700 overflow-hidden">
+                  {/* Header row */}
+                  <div className="grid grid-cols-[140px_70px_110px_120px_120px_130px_40px] gap-2 px-3 py-1.5 bg-neutral-800/50">
+                    {["Jenis Kartu","Qty","Harga Dalam Kurs","Kurs","Total IDR (auto)","Waktu Bayar",""].map(h => (
+                      <span key={h} className="text-[9px] text-neutral-500 uppercase tracking-wide">{h}</span>
+                    ))}
+                  </div>
+
+                  {icocaRows.map((row, i) => (
+                    <div key={row._key} className="grid grid-cols-[140px_70px_110px_120px_120px_130px_40px] gap-2 px-3 py-2 border-t border-neutral-800/60 items-center">
+                      <input
+                        value={row.nama}
+                        onChange={e => setIcoca(i, { nama: e.target.value })}
+                        placeholder="ICOCA / SUICA"
+                        className={inp}
+                      />
+                      <FormattedInput
+                        value={row.qty}
+                        onChange={v => handleIcocaChange(i, "qty", v)}
+                        placeholder="0"
+                        className={inp}
+                      />
+                      <FormattedInput
+                        value={row.harga_jpy}
+                        onChange={v => handleIcocaChange(i, "harga_jpy", v)}
+                        placeholder="0"
+                        className={inp}
+                      />
+                      <select
+                        value={row.kurs_id}
+                        onChange={e => handleIcocaChange(i, "kurs_id", e.target.value)}
+                        className={sel}
+                      >
+                        <option value="">— Kurs —</option>
+                        {kursList.map(k => (
+                          <option key={k.id} value={k.id}>{k.label} ({k.value || "—"})</option>
+                        ))}
+                      </select>
+                      <FormattedInput
+                        value={row.harga_idr}
+                        onChange={v => setIcoca(i, { harga_idr: v })}
+                        placeholder="auto"
+                        className={inp}
+                      />
+                      <input
+                        type="date"
+                        value={row.waktu_pembayaran}
+                        onChange={e => setIcoca(i, { waktu_pembayaran: e.target.value })}
+                        className={inp}
+                      />
+                      {icocaRows.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => removeIcocaRow(i)}
+                          className="text-neutral-600 hover:text-red-400 text-sm cursor-pointer px-1"
+                        >
+                          ×
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <button
+                  onClick={addIcocaRow}
+                  className="mt-2 w-full text-xs text-neutral-500 hover:text-teal-400 border border-dashed border-neutral-700 hover:border-teal-600 rounded-lg py-2 transition-colors cursor-pointer"
+                >
+                  + Tambah ICOCA/SUICA
                 </button>
               </div>
               )}
@@ -781,7 +1019,7 @@ export function ManifestTransportasi({ tripId }: Props) {
                       <td className="px-3 py-2 text-xs text-neutral-400 whitespace-nowrap">{fmtJpy(item.harga_jpy)}</td>
                       <td className="px-3 py-2 text-xs text-neutral-400 whitespace-nowrap">{totalJpy > 0 ? fmtJpy(totalJpy) : "—"}</td>
                       <td className="px-3 py-2 text-xs text-teal-400 whitespace-nowrap">{fmtIdr(item.harga_idr)}</td>
-                      <td className="px-3 py-2 text-xs text-neutral-500">{item.kurs ?? "—"}</td>
+                      <td className="px-3 py-2 text-xs text-neutral-500">{item.kurs_label ?? item.kurs ?? "—"}</td>
                       <td className="px-3 py-2 text-xs text-neutral-400 whitespace-nowrap">{fmtDate(item.waktu_pembayaran)}</td>
                       <td className="px-3 py-2">
                         <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -838,7 +1076,7 @@ export function ManifestTransportasi({ tripId }: Props) {
                     <td className="px-3 py-2 text-xs text-neutral-400 whitespace-nowrap">{fmtJpy(item.harga_jpy)}</td>
                     <td className="px-3 py-2 text-xs text-neutral-500">{item.harga_satuan ?? "—"}</td>
                     <td className="px-3 py-2 text-xs text-teal-400 whitespace-nowrap">{fmtIdr(item.harga_idr)}</td>
-                    <td className="px-3 py-2 text-xs text-neutral-500">{item.kurs ?? "—"}</td>
+                    <td className="px-3 py-2 text-xs text-neutral-500">{item.kurs_label ?? item.kurs ?? "—"}</td>
                     <td className="px-3 py-2 text-xs text-neutral-400 whitespace-nowrap">{fmtDate(item.waktu_pembayaran)}</td>
                     <td className="px-3 py-2">
                       <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -869,6 +1107,63 @@ export function ManifestTransportasi({ tripId }: Props) {
                     {fmtIdr(lokalList.reduce((s, x) => s + (x.harga_idr ?? 0), 0))}
                   </td>
                   <td colSpan={3} />
+                </tr>
+              </tbody>
+            </table>
+          </>
+        )}
+
+        {/* ICOCA/SUICA section */}
+        {icocaList.length > 0 && (
+          <>
+            <div className="px-4 py-2 bg-neutral-900/50 border-b border-neutral-800 border-t border-t-neutral-800">
+              <span className="text-[10px] font-semibold uppercase tracking-widest text-neutral-500">ICOCA / SUICA</span>
+            </div>
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-neutral-800">
+                  {["JENIS KARTU","QTY","HARGA DALAM KURS","TOTAL JPY","TOTAL IDR","KURS","WAKTU BAYAR",""].map((col, i) => (
+                    <th key={i} className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wider text-neutral-600 whitespace-nowrap">
+                      {col}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-neutral-800/50">
+                {icocaList.map(item => {
+                  const totalJpy = (item.qty ?? 0) * (item.harga_jpy ?? 0);
+                  return (
+                    <tr key={item.id} className="group hover:bg-white/[0.02] transition-colors">
+                      <td className="px-3 py-2 text-xs font-medium text-neutral-100 whitespace-nowrap">{item.kategori_usia ?? "—"}</td>
+                      <td className="px-3 py-2 text-xs text-neutral-400">{item.qty ?? "—"}</td>
+                      <td className="px-3 py-2 text-xs text-neutral-400 whitespace-nowrap">{fmtJpy(item.harga_jpy)}</td>
+                      <td className="px-3 py-2 text-xs text-neutral-400 whitespace-nowrap">{totalJpy > 0 ? fmtJpy(totalJpy) : "—"}</td>
+                      <td className="px-3 py-2 text-xs text-teal-400 whitespace-nowrap">{fmtIdr(item.harga_idr)}</td>
+                      <td className="px-3 py-2 text-xs text-neutral-500">{item.kurs_label ?? item.kurs ?? "—"}</td>
+                      <td className="px-3 py-2 text-xs text-neutral-400 whitespace-nowrap">{fmtDate(item.waktu_pembayaran)}</td>
+                      <td className="px-3 py-2">
+                        <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button onClick={() => startEdit(item)} className="text-[10px] text-neutral-500 hover:text-teal-400 cursor-pointer">edit</button>
+                          <button onClick={() => handleDelete(item.id!)} className="text-[10px] text-neutral-500 hover:text-red-400 cursor-pointer">hapus</button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+                {/* ICOCA/SUICA total row */}
+                <tr className="bg-neutral-900/30">
+                  <td className="px-3 py-2 text-xs font-bold text-neutral-300" colSpan={1}>TOTAL ICOCA/SUICA</td>
+                  <td className="px-3 py-2 text-xs font-bold text-neutral-300">
+                    {icocaList.reduce((s, x) => s + (x.qty ?? 0), 0)}
+                  </td>
+                  <td className="px-3 py-2" />
+                  <td className="px-3 py-2 text-xs font-bold text-neutral-300 whitespace-nowrap">
+                    {fmtJpy(icocaList.reduce((s, x) => s + (x.qty ?? 0) * (x.harga_jpy ?? 0), 0))}
+                  </td>
+                  <td className="px-3 py-2 text-xs font-bold text-teal-300 whitespace-nowrap">
+                    {fmtIdr(icocaList.reduce((s, x) => s + (x.harga_idr ?? 0), 0))}
+                  </td>
+                  <td colSpan={2} />
                 </tr>
               </tbody>
             </table>

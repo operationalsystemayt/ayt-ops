@@ -30,13 +30,13 @@ function VisaBadge({ status }: { status: VisaStatus }) {
     case "pending":
       return (
         <span className="inline-flex items-center gap-1 rounded-full bg-amber-900/40 border border-amber-700/50 px-2 py-0.5 text-[10px] text-amber-400">
-          ⚠ Belum
+          ⚠ Belum di Upload
         </span>
       );
     case "not_required":
       return (
         <span className="inline-flex items-center gap-1 rounded-full bg-neutral-800 border border-neutral-700 px-2 py-0.5 text-[10px] text-neutral-500">
-          Tidak perlu
+          Belum di Upload
         </span>
       );
     case "rejected":
@@ -112,7 +112,7 @@ export function ManifestVisa({ tripId }: Props) {
       <div className="flex items-center justify-between px-4 py-3 border-b border-neutral-800 flex-wrap gap-2">
         <span className="text-xs text-neutral-400">
           {uploaded}/{list.length - notRequired} visa terupload
-          {notRequired > 0 && <span className="ml-2 text-neutral-600">({notRequired} tidak perlu)</span>}
+          {notRequired > 0 && <span className="ml-2 text-neutral-600">({notRequired} belum di upload)</span>}
         </span>
         <div className="flex items-center gap-2 flex-wrap">
           <button
@@ -195,7 +195,7 @@ export function ManifestVisa({ tripId }: Props) {
                       e.target.value = "";
                     }}
                   />
-                  <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="flex items-center gap-2">
                     {(p.visa_status === "uploaded" || p.visa_status === "approved") && p.visa_drive_file_id && (
                       <a
                         href={`https://drive.google.com/file/d/${p.visa_drive_file_id}/view`}

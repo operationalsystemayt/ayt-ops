@@ -14,7 +14,7 @@ func (h *Handler) ListPeserta(w http.ResponseWriter, r *http.Request) {
 		SELECT id::text, trip_id::text, no_urut, title::text, nama_lengkap, no_paspor,
 		       place_of_birth, tgl_lahir::text, place_of_issued, issued_date::text,
 		       expiry_date::text, room_type::text, unit, klien, meals::text,
-		       kepala_keluarga, note,
+		       kepala_keluarga, note, no_telp,
 		       paspor_drive_file_id, ktp_drive_file_id, visa_drive_file_id,
 		       visa_status::text, created_at, updated_at
 		FROM manifest_peserta WHERE trip_id = $1::uuid ORDER BY no_urut`, tripID)
@@ -28,7 +28,7 @@ func (h *Handler) ListPeserta(w http.ResponseWriter, r *http.Request) {
 		var p models.ManifestPeserta
 		if err := rows.Scan(&p.ID, &p.TripID, &p.NoUrut, &p.Title, &p.NamaLengkap, &p.NoPaspor,
 			&p.PlaceOfBirth, &p.TglLahir, &p.PlaceOfIssued, &p.IssuedDate, &p.ExpiryDate,
-			&p.RoomType, &p.Unit, &p.Klien, &p.Meals, &p.KepalaKeluarga, &p.Note,
+			&p.RoomType, &p.Unit, &p.Klien, &p.Meals, &p.KepalaKeluarga, &p.Note, &p.NoTelp,
 			&p.PasporDriveFileID, &p.KtpDriveFileID,
 			&p.VisaDriveFileID, &p.VisaStatus, &p.CreatedAt, &p.UpdatedAt); err != nil {
 			jsonErr(w, 500, err.Error()); return
@@ -56,6 +56,7 @@ func (h *Handler) CreatePeserta(w http.ResponseWriter, r *http.Request) {
 		Meals         *string `json:"meals"`
 		KepalaKeluarga *string `json:"kepala_keluarga"`
 		Note          *string `json:"note"`
+		NoTelp        *string `json:"no_telp"`
 	}
 	if err := decode(r, &body); err != nil {
 		jsonErr(w, 400, "invalid body"); return
@@ -72,24 +73,24 @@ func (h *Handler) CreatePeserta(w http.ResponseWriter, r *http.Request) {
 		INSERT INTO manifest_peserta
 		  (trip_id, no_urut, title, nama_lengkap, no_paspor, place_of_birth, tgl_lahir,
 		   place_of_issued, issued_date, expiry_date, room_type, unit, klien, meals,
-		   kepala_keluarga, note)
+		   kepala_keluarga, note, no_telp)
 		VALUES
 		  ($1::uuid, $2, $3::peserta_title, $4, $5, $6, $7::date,
 		   $8, $9::date, $10::date, $11::room_type, $12, $13, $14::meal_type,
-		   $15, $16)
+		   $15, $16, $17)
 		RETURNING id::text, trip_id::text, no_urut, title::text, nama_lengkap, no_paspor,
 		          place_of_birth, tgl_lahir::text, place_of_issued, issued_date::text,
 		          expiry_date::text, room_type::text, unit, klien, meals::text,
-		          kepala_keluarga, note,
+		          kepala_keluarga, note, no_telp,
 		          paspor_drive_file_id, ktp_drive_file_id, visa_drive_file_id,
 		          visa_status::text, created_at, updated_at`,
 		tripID, body.NoUrut, body.Title, body.NamaLengkap, body.NoPaspor,
 		body.PlaceOfBirth, body.TglLahir, body.PlaceOfIssued, body.IssuedDate,
 		body.ExpiryDate, body.RoomType, body.Unit, body.Klien, body.Meals,
-		body.KepalaKeluarga, body.Note,
+		body.KepalaKeluarga, body.Note, body.NoTelp,
 	).Scan(&p.ID, &p.TripID, &p.NoUrut, &p.Title, &p.NamaLengkap, &p.NoPaspor,
 		&p.PlaceOfBirth, &p.TglLahir, &p.PlaceOfIssued, &p.IssuedDate, &p.ExpiryDate,
-		&p.RoomType, &p.Unit, &p.Klien, &p.Meals, &p.KepalaKeluarga, &p.Note,
+		&p.RoomType, &p.Unit, &p.Klien, &p.Meals, &p.KepalaKeluarga, &p.Note, &p.NoTelp,
 		&p.PasporDriveFileID, &p.KtpDriveFileID,
 		&p.VisaDriveFileID, &p.VisaStatus, &p.CreatedAt, &p.UpdatedAt)
 	if err != nil {
@@ -117,6 +118,7 @@ func (h *Handler) UpdatePeserta(w http.ResponseWriter, r *http.Request) {
 		Meals         *string `json:"meals"`
 		KepalaKeluarga *string `json:"kepala_keluarga"`
 		Note          *string `json:"note"`
+		NoTelp        *string `json:"no_telp"`
 		VisaStatus    *string `json:"visa_status"`
 	}
 	if err := decode(r, &body); err != nil {
@@ -145,12 +147,13 @@ func (h *Handler) UpdatePeserta(w http.ResponseWriter, r *http.Request) {
 		  visa_status    = COALESCE($15::visa_status_type, visa_status),
 		  kepala_keluarga= COALESCE($17, kepala_keluarga),
 		  note           = COALESCE($18, note),
+		  no_telp        = COALESCE($19, no_telp),
 		  updated_at     = $16
 		WHERE id = $1::uuid`,
 		pesertaID, body.NoUrut, body.Title, body.NamaLengkap, body.NoPaspor,
 		body.PlaceOfBirth, body.TglLahir, body.PlaceOfIssued, body.IssuedDate,
 		body.ExpiryDate, body.RoomType, body.Unit, body.Klien, body.Meals,
-		body.VisaStatus, time.Now(), body.KepalaKeluarga, body.Note,
+		body.VisaStatus, time.Now(), body.KepalaKeluarga, body.Note, body.NoTelp,
 	)
 	if err != nil {
 		jsonErr(w, 500, err.Error()); return

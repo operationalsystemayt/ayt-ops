@@ -39,19 +39,19 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json();
 }
 
-async function reqForm<T>(url: string, fd: FormData): Promise<T> {
-  console.debug(`[API] POST (form) ${url}`);
+async function reqForm<T>(url: string, fd: FormData, method: "POST" | "PUT" = "POST"): Promise<T> {
+  console.debug(`[API] ${method} (form) ${url}`);
   let res: Response;
   try {
-    res = await fetch(url, { method: "POST", body: fd, headers: apiKeyHeaders });
+    res = await fetch(url, { method, body: fd, headers: apiKeyHeaders });
   } catch (e: any) {
-    console.error(`[API] network error — POST ${url}:`, e.message);
+    console.error(`[API] network error — ${method} ${url}:`, e.message);
     throw new Error(`Network error: cannot reach ${BASE} — is the Go backend running?`);
   }
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     const msg = (body as any).error ?? `HTTP ${res.status}`;
-    console.error(`[API] ${res.status} POST ${url} →`, msg);
+    console.error(`[API] ${res.status} ${method} ${url} →`, msg);
     throw new Error(msg);
   }
   return res.json();
@@ -59,10 +59,11 @@ async function reqForm<T>(url: string, fd: FormData): Promise<T> {
 
 // ── Trips ──────────────────────────────────────────────────────────────────────
 export const tripApi = {
-  list: (status?: string, tripType?: string) => {
+  list: (status?: string, tripType?: string, q?: string) => {
     const params = new URLSearchParams();
     if (status) params.set("status", status);
     if (tripType) params.set("trip_type", tripType);
+    if (q) params.set("q", q);
     const qs = params.toString();
     return req<Trip[]>(`/api/trips${qs ? `?${qs}` : ""}`);
   },
@@ -422,6 +423,8 @@ export const paymentsApi = {
   list: (tripId: string) => req<TripPayment[]>(`/api/trips/${tripId}/payments`),
   create: (tripId: string, formData: FormData) =>
     reqForm<TripPayment>(`${BASE}/api/trips/${tripId}/payments`, formData),
+  update: (tripId: string, payId: string, formData: FormData) =>
+    reqForm<TripPayment>(`${BASE}/api/trips/${tripId}/payments/${payId}`, formData, "PUT"),
   delete: (tripId: string, payId: string) =>
     req<void>(`/api/trips/${tripId}/payments/${payId}`, { method: "DELETE" }),
   exportCsv: async (tripId: string): Promise<void> => {

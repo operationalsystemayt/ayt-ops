@@ -50,6 +50,9 @@ interface ConfirmationGroup {
   harga_idr: string;
   harga_jual_idr: string;
   waktu_pembayaran: string;
+  voucher_atas_nama: string;
+  metode_pembayaran: string;
+  harga_realisasi: string;
   peserta_rows: PesertaRow[];
 }
 
@@ -74,6 +77,9 @@ const newConfirmation = (): ConfirmationGroup => ({
   harga_idr: "",
   harga_jual_idr: "",
   waktu_pembayaran: "",
+  voucher_atas_nama: "",
+  metode_pembayaran: "",
+  harga_realisasi: "",
   peserta_rows: [newPesertaRow()],
 });
 
@@ -296,6 +302,9 @@ export function ManifestHotel({ tripId }: Props) {
             peserta_ids: pesertaIds,
             nota_drive_file_id: finalDriveId || undefined,
             waktu_pembayaran: conf.waktu_pembayaran || undefined,
+            voucher_atas_nama: conf.voucher_atas_nama || undefined,
+            metode_pembayaran: conf.metode_pembayaran || undefined,
+            harga_realisasi: parseFloat(conf.harga_realisasi) || undefined,
           };
 
           if (conf.id) {
@@ -354,6 +363,9 @@ export function ManifestHotel({ tripId }: Props) {
         harga_idr: item.harga_idr != null ? String(item.harga_idr) : "",
         harga_jual_idr: item.harga_jual_idr != null ? String(item.harga_jual_idr) : "",
         waktu_pembayaran: item.waktu_pembayaran ?? "",
+        voucher_atas_nama: item.voucher_atas_nama ?? "",
+        metode_pembayaran: item.metode_pembayaran ?? "",
+        harga_realisasi: item.harga_realisasi != null ? String(item.harga_realisasi) : "",
         peserta_rows: item.peserta_ids.length > 0
           ? item.peserta_ids.map(pid => ({ _key: uid(), peserta_id: pid }))
           : [newPesertaRow()],
@@ -374,7 +386,7 @@ export function ManifestHotel({ tripId }: Props) {
       {/* ── Toolbar ─────────────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-neutral-800 flex-wrap gap-2">
         <span className="text-xs text-neutral-400">{list.length} hotel</span>
-        <span className="text-xs text-neutral-400">Total harga beli: {fmtIdr(list.reduce((sum, h) => sum + (h.harga_idr ?? 0), 0))}</span>
+        <span className="text-xs text-neutral-400">Total harga booking: {fmtIdr(list.reduce((sum, h) => sum + (h.harga_idr ?? 0), 0))}</span>
         <span className="text-xs text-neutral-400">Rata rata per pax: {fmtIdr(list.length > 0 ? list.reduce((sum, h) => sum + (h.harga_idr ?? 0), 0) / list.reduce((sum, h) => sum + (h.peserta_ids?.length ?? 0), 0) : 0)}</span>
         <div className="flex items-center gap-2 flex-wrap">
           <input
@@ -605,7 +617,7 @@ export function ManifestHotel({ tripId }: Props) {
                               />
                             </div>
                             <div className="w-36">
-                              <label className={lbl}>Harga Beli IDR (auto)</label>
+                              <label className={lbl}>Harga Booking IDR (auto)</label>
                               <FormattedInput
                                 value={conf.harga_idr}
                                 onChange={v => setConf(hi, ci, { harga_idr: v })}
@@ -628,6 +640,37 @@ export function ManifestHotel({ tripId }: Props) {
                                 type="date"
                                 value={conf.waktu_pembayaran}
                                 onChange={e => setConf(hi, ci, { waktu_pembayaran: e.target.value })}
+                                className={inp}
+                              />
+                            </div>
+                          </div>
+
+                          {/* Voucher / pembayaran row */}
+                          <div className="flex items-center gap-2 mb-2 flex-wrap">
+                            <div className="w-48">
+                              <label className={lbl}>Voucher Atas Nama</label>
+                              <input
+                                value={conf.voucher_atas_nama}
+                                onChange={e => setConf(hi, ci, { voucher_atas_nama: e.target.value })}
+                                placeholder="Nama pada voucher"
+                                className={inp}
+                              />
+                            </div>
+                            <div className="w-40">
+                              <label className={lbl}>Metode Pembayaran</label>
+                              <input
+                                value={conf.metode_pembayaran}
+                                onChange={e => setConf(hi, ci, { metode_pembayaran: e.target.value })}
+                                placeholder="Transfer / CC / ..."
+                                className={inp}
+                              />
+                            </div>
+                            <div className="w-36">
+                              <label className={lbl}>Harga Realisasi IDR</label>
+                              <FormattedInput
+                                value={conf.harga_realisasi}
+                                onChange={v => setConf(hi, ci, { harga_realisasi: v })}
+                                placeholder="0"
                                 className={inp}
                               />
                             </div>
@@ -717,7 +760,7 @@ export function ManifestHotel({ tripId }: Props) {
         <table className="w-full">
           <thead>
             <tr className="border-b border-neutral-800">
-              {["RUTE","NAMA HOTEL","AGENT","CONF NO","TGL STAY","JML ROOM","TIPE","NAMA TAMU","JPY","HARGA BELI","TOTAL BELI","HARGA JUAL","WAKTU BAYAR","KURS",""].map((col, i) => (
+              {["RUTE","NAMA HOTEL","AGENT","CONF NO","TGL STAY","JML ROOM","TIPE","NAMA TAMU","JPY","HARGA BOOKING","TOTAL BOOKING","RATA2/MALAM","HARGA JUAL","WAKTU BAYAR","KURS","METODE BAYAR","HARGA REALISASI",""].map((col, i) => (
                 <th key={i} className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wider text-neutral-600 whitespace-nowrap">
                   {col}
                 </th>
@@ -727,7 +770,7 @@ export function ManifestHotel({ tripId }: Props) {
           <tbody className="divide-y divide-neutral-800/50">
             {list.length === 0 && (
               <tr>
-                <td colSpan={15} className="px-4 py-8 text-center text-xs text-neutral-600">
+                <td colSpan={18} className="px-4 py-8 text-center text-xs text-neutral-600">
                   Belum ada data hotel
                 </td>
               </tr>
@@ -749,9 +792,14 @@ export function ManifestHotel({ tripId }: Props) {
                 <td className="px-3 py-2 text-xs text-neutral-400 whitespace-nowrap">{fmtJpy(item.harga_jpy)}</td>
                 <td className="px-3 py-2 text-xs text-neutral-400 whitespace-nowrap">{fmtIdr(item.harga_idr)}</td>
                 <td className="px-3 py-2 text-xs text-teal-400 whitespace-nowrap font-medium">{fmtIdr(item.total_idr)}</td>
+                <td className="px-3 py-2 text-xs text-neutral-400 whitespace-nowrap">
+                  {fmtIdr((item.total_idr ?? 0) / (item.jumlah_room || 1) / (item.jumlah_malam || 1))}
+                </td>
                 <td className="px-3 py-2 text-xs text-green-400 whitespace-nowrap font-medium">{fmtIdr(item.harga_jual_idr)}</td>
                 <td className="px-3 py-2 text-xs text-neutral-400 whitespace-nowrap">{fmtDate(item.waktu_pembayaran)}</td>
                 <td className="px-3 py-2 text-xs text-neutral-500">{item.kurs ?? "—"}</td>
+                <td className="px-3 py-2 text-xs text-neutral-400 whitespace-nowrap">{item.metode_pembayaran ?? "—"}</td>
+                <td className="px-3 py-2 text-xs text-neutral-400 whitespace-nowrap">{fmtIdr(item.harga_realisasi)}</td>
                 <td className="px-3 py-2">
                   <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                     {item.nota_drive_file_id && (

@@ -38,6 +38,9 @@ func (h *Handler) ListKeberangkatan(w http.ResponseWriter, r *http.Request) {
 			mp.title::text, mp.nama_lengkap, mp.no_paspor,
 			mp.place_of_birth, mp.tgl_lahir::text, mp.place_of_issued,
 			mp.issued_date::text, mp.expiry_date::text,
+			mk.terminal, mk.transit_berangkat, mk.transit_pulang,
+			mk.bagasi_checkin_berangkat_kg, mk.bagasi_checkin_pulang_kg,
+			mk.harga_tiket_berangkat, mk.harga_tiket_pulang,
 			mk.created_at, mk.updated_at
 		FROM manifest_keberangkatan mk
 		LEFT JOIN payment_schedules ps ON ps.id = mk.payment_schedule_id
@@ -65,6 +68,9 @@ func (h *Handler) ListKeberangkatan(w http.ResponseWriter, r *http.Request) {
 			&k.Title, &k.NamaLengkap, &k.NoPaspor,
 			&k.PlaceOfBirth, &k.TglLahir, &k.PlaceOfIssued,
 			&k.IssuedDate, &k.ExpiryDate,
+			&k.Terminal, &k.TransitBerangkat, &k.TransitPulang,
+			&k.BagasiCheckinBerangkatKg, &k.BagasiCheckinPulangKg,
+			&k.HargaTiketBerangkat, &k.HargaTiketPulang,
 			&k.CreatedAt, &k.UpdatedAt,
 		); err != nil {
 			jsonErr(w, 500, err.Error())
@@ -99,6 +105,13 @@ func (h *Handler) CreateKeberangkatan(w http.ResponseWriter, r *http.Request) {
 		BagasiCheckinKg    *float64 `json:"bagasi_checkin_kg"`
 		Unit               *int     `json:"unit"`
 		Klien              *string  `json:"klien"`
+		Terminal                 *string  `json:"terminal"`
+		TransitBerangkat         *string  `json:"transit_berangkat"`
+		TransitPulang            *string  `json:"transit_pulang"`
+		BagasiCheckinBerangkatKg *float64 `json:"bagasi_checkin_berangkat_kg"`
+		BagasiCheckinPulangKg    *float64 `json:"bagasi_checkin_pulang_kg"`
+		HargaTiketBerangkat      *float64 `json:"harga_tiket_berangkat"`
+		HargaTiketPulang         *float64 `json:"harga_tiket_pulang"`
 	}
 	if err := decode(r, &body); err != nil {
 		jsonErr(w, 400, "invalid body")
@@ -107,17 +120,30 @@ func (h *Handler) CreateKeberangkatan(w http.ResponseWriter, r *http.Request) {
 
 	ctx := r.Context()
 
+	// harga_tiket = harga_tiket_berangkat + harga_tiket_pulang (kept for laba/CSV compatibility)
+	var hargaTiket *float64
+	if body.HargaTiketBerangkat != nil || body.HargaTiketPulang != nil {
+		total := 0.0
+		if body.HargaTiketBerangkat != nil {
+			total += *body.HargaTiketBerangkat
+		}
+		if body.HargaTiketPulang != nil {
+			total += *body.HargaTiketPulang
+		}
+		hargaTiket = &total
+	}
+
 	// Create payment schedule if limit + harga set
 	var paymentScheduleID *string
 	if body.LimitPembayaran != nil && *body.LimitPembayaran != "" &&
-		body.HargaTiket != nil && *body.HargaTiket > 0 {
+		hargaTiket != nil && *hargaTiket > 0 {
 		deskripsi := body.KodeBooking
 		var psID string
 		err := h.DB.QueryRow(ctx, `
 			INSERT INTO payment_schedules (trip_id, jenis, deskripsi, deadline, amount)
 			VALUES ($1::uuid, 'TIKET', $2, $3::date, $4)
 			RETURNING id::text`,
-			tripID, deskripsi, body.LimitPembayaran, body.HargaTiket,
+			tripID, deskripsi, body.LimitPembayaran, hargaTiket,
 		).Scan(&psID)
 		if err != nil {
 			jsonErr(w, 500, "create payment_schedule: "+err.Error())
@@ -132,12 +158,18 @@ func (h *Handler) CreateKeberangkatan(w http.ResponseWriter, r *http.Request) {
 		  (trip_id, peserta_id, tgl_pemesanan, pemesanan, agent, harga_tiket,
 		   kode_booking, no_etiket, maskapai, rute_berangkat,
 		   tgl_berangkat_flight, jam_berangkat, rute_pulang, tgl_pulang_flight,
-		   jam_pulang, bagasi_kabin_kg, bagasi_checkin_kg, unit, klien, payment_schedule_id)
+		   jam_pulang, bagasi_kabin_kg, bagasi_checkin_kg, unit, klien, payment_schedule_id,
+		   terminal, transit_berangkat, transit_pulang,
+		   bagasi_checkin_berangkat_kg, bagasi_checkin_pulang_kg,
+		   harga_tiket_berangkat, harga_tiket_pulang)
 		VALUES
 		  ($1::uuid, $2::uuid, $3::date, $4, $5, $6,
 		   $7, $8, $9, $10,
 		   $11::date, $12::time, $13, $14::date,
-		   $15::time, $16, $17, $18, $19, $20::uuid)
+		   $15::time, $16, $17, $18, $19, $20::uuid,
+		   $21, $22, $23,
+		   $24, $25,
+		   $26, $27)
 		RETURNING id::text, trip_id::text, peserta_id::text, payment_schedule_id::text,
 		          tgl_pemesanan::text, pemesanan, agent,
 		          harga_tiket, kode_booking, no_etiket, maskapai,
@@ -148,12 +180,18 @@ func (h *Handler) CreateKeberangkatan(w http.ResponseWriter, r *http.Request) {
 		          NULL::text, NULL::text, NULL::text,
 		          NULL::text, NULL::text, NULL::text,
 		          NULL::text, NULL::text,
+		          terminal, transit_berangkat, transit_pulang,
+		          bagasi_checkin_berangkat_kg, bagasi_checkin_pulang_kg,
+		          harga_tiket_berangkat, harga_tiket_pulang,
 		          created_at, updated_at`,
-		tripID, body.PesertaID, body.TglPemesanan, body.Pemesanan, body.Agent, body.HargaTiket,
+		tripID, body.PesertaID, body.TglPemesanan, body.Pemesanan, body.Agent, hargaTiket,
 		body.KodeBooking, body.NoEtiket, body.Maskapai, body.RuteBerangkat,
 		body.TglBerangkatFlight, body.JamBerangkat, body.RutePulang, body.TglPulangFlight,
 		body.JamPulang, body.BagasiKabinKg, body.BagasiCheckinKg, body.Unit, body.Klien,
 		paymentScheduleID,
+		body.Terminal, body.TransitBerangkat, body.TransitPulang,
+		body.BagasiCheckinBerangkatKg, body.BagasiCheckinPulangKg,
+		body.HargaTiketBerangkat, body.HargaTiketPulang,
 	).Scan(
 		&k.ID, &k.TripID, &k.PesertaID, &k.PaymentScheduleID,
 		&k.TglPemesanan, &k.Pemesanan, &k.Agent,
@@ -165,6 +203,9 @@ func (h *Handler) CreateKeberangkatan(w http.ResponseWriter, r *http.Request) {
 		&k.Title, &k.NamaLengkap, &k.NoPaspor,
 		&k.PlaceOfBirth, &k.TglLahir, &k.PlaceOfIssued,
 		&k.IssuedDate, &k.ExpiryDate,
+		&k.Terminal, &k.TransitBerangkat, &k.TransitPulang,
+		&k.BagasiCheckinBerangkatKg, &k.BagasiCheckinPulangKg,
+		&k.HargaTiketBerangkat, &k.HargaTiketPulang,
 		&k.CreatedAt, &k.UpdatedAt,
 	)
 	if err != nil {
@@ -200,6 +241,13 @@ func (h *Handler) UpdateKeberangkatan(w http.ResponseWriter, r *http.Request) {
 		BagasiCheckinKg    *float64 `json:"bagasi_checkin_kg"`
 		Unit               *int     `json:"unit"`
 		Klien              *string  `json:"klien"`
+		Terminal                 *string  `json:"terminal"`
+		TransitBerangkat         *string  `json:"transit_berangkat"`
+		TransitPulang            *string  `json:"transit_pulang"`
+		BagasiCheckinBerangkatKg *float64 `json:"bagasi_checkin_berangkat_kg"`
+		BagasiCheckinPulangKg    *float64 `json:"bagasi_checkin_pulang_kg"`
+		HargaTiketBerangkat      *float64 `json:"harga_tiket_berangkat"`
+		HargaTiketPulang         *float64 `json:"harga_tiket_pulang"`
 	}
 	if err := decode(r, &body); err != nil {
 		jsonErr(w, 400, "invalid body")
@@ -208,9 +256,33 @@ func (h *Handler) UpdateKeberangkatan(w http.ResponseWriter, r *http.Request) {
 
 	ctx := r.Context()
 
+	// harga_tiket = harga_tiket_berangkat + harga_tiket_pulang (recomputed from new + existing values)
+	var hargaTiket *float64
+	if body.HargaTiketBerangkat != nil || body.HargaTiketPulang != nil {
+		var existingBerangkat, existingPulang *float64
+		h.DB.QueryRow(ctx, `SELECT harga_tiket_berangkat, harga_tiket_pulang FROM manifest_keberangkatan WHERE id = $1::uuid`, kid).
+			Scan(&existingBerangkat, &existingPulang)
+		berangkat := body.HargaTiketBerangkat
+		if berangkat == nil {
+			berangkat = existingBerangkat
+		}
+		pulang := body.HargaTiketPulang
+		if pulang == nil {
+			pulang = existingPulang
+		}
+		total := 0.0
+		if berangkat != nil {
+			total += *berangkat
+		}
+		if pulang != nil {
+			total += *pulang
+		}
+		hargaTiket = &total
+	}
+
 	// Upsert payment schedule if limit_pembayaran provided
 	if body.LimitPembayaran != nil && *body.LimitPembayaran != "" &&
-		body.HargaTiket != nil && *body.HargaTiket > 0 {
+		hargaTiket != nil && *hargaTiket > 0 {
 		var existingPSID *string
 		h.DB.QueryRow(ctx, `SELECT payment_schedule_id::text FROM manifest_keberangkatan WHERE id = $1::uuid`, kid).Scan(&existingPSID)
 
@@ -218,14 +290,14 @@ func (h *Handler) UpdateKeberangkatan(w http.ResponseWriter, r *http.Request) {
 		if existingPSID != nil {
 			h.DB.Exec(ctx, `
 				UPDATE payment_schedules SET deadline = $1::date, amount = $2, deskripsi = $3 WHERE id = $4::uuid`,
-				body.LimitPembayaran, body.HargaTiket, deskripsi, *existingPSID)
+				body.LimitPembayaran, hargaTiket, deskripsi, *existingPSID)
 		} else {
 			var psID string
 			err := h.DB.QueryRow(ctx, `
 				INSERT INTO payment_schedules (trip_id, jenis, deskripsi, deadline, amount)
 				VALUES ($1::uuid, 'TIKET', $2, $3::date, $4)
 				RETURNING id::text`,
-				tripID, deskripsi, body.LimitPembayaran, body.HargaTiket,
+				tripID, deskripsi, body.LimitPembayaran, hargaTiket,
 			).Scan(&psID)
 			if err == nil {
 				h.DB.Exec(ctx, `UPDATE manifest_keberangkatan SET payment_schedule_id = $1::uuid WHERE id = $2::uuid`, psID, kid)
@@ -253,13 +325,23 @@ func (h *Handler) UpdateKeberangkatan(w http.ResponseWriter, r *http.Request) {
 		  bagasi_checkin_kg   = COALESCE($17, bagasi_checkin_kg),
 		  unit                = COALESCE($18, unit),
 		  klien               = COALESCE($19, klien),
+		  terminal                    = COALESCE($21, terminal),
+		  transit_berangkat           = COALESCE($22, transit_berangkat),
+		  transit_pulang              = COALESCE($23, transit_pulang),
+		  bagasi_checkin_berangkat_kg = COALESCE($24, bagasi_checkin_berangkat_kg),
+		  bagasi_checkin_pulang_kg    = COALESCE($25, bagasi_checkin_pulang_kg),
+		  harga_tiket_berangkat       = COALESCE($26, harga_tiket_berangkat),
+		  harga_tiket_pulang          = COALESCE($27, harga_tiket_pulang),
 		  updated_at          = $20
 		WHERE id = $1::uuid`,
 		kid, body.PesertaID, body.TglPemesanan, body.Pemesanan, body.Agent,
-		body.HargaTiket, body.KodeBooking, body.NoEtiket, body.Maskapai, body.RuteBerangkat,
+		hargaTiket, body.KodeBooking, body.NoEtiket, body.Maskapai, body.RuteBerangkat,
 		body.TglBerangkatFlight, body.JamBerangkat, body.RutePulang, body.TglPulangFlight,
 		body.JamPulang, body.BagasiKabinKg, body.BagasiCheckinKg, body.Unit, body.Klien,
 		time.Now(),
+		body.Terminal, body.TransitBerangkat, body.TransitPulang,
+		body.BagasiCheckinBerangkatKg, body.BagasiCheckinPulangKg,
+		body.HargaTiketBerangkat, body.HargaTiketPulang,
 	)
 	if err != nil {
 		jsonErr(w, 500, err.Error())
@@ -382,6 +464,11 @@ const tiketOcrPrompt = `Baca dokumen PDF tiket penerbangan ini secara lengkap da
   "jam_pulang": "HH:MM",
   "bagasi_kabin_kg": 7,
   "bagasi_checkin_kg": 30,
+  "terminal": "Terminal 3",
+  "transit_berangkat": "MNL · 2j 30m",
+  "transit_pulang": "",
+  "bagasi_checkin_berangkat_kg": 30,
+  "bagasi_checkin_pulang_kg": 30,
   "booking_groups": [
     {
       "kode_booking": "EOP49E",
@@ -424,6 +511,19 @@ ATURAN WAJIB:
 5. LENGKAP
    - Sertakan SEMUA peserta dan SEMUA kode booking yang ada di PDF
    - Jangan lewatkan satupun
+
+6. TERMINAL
+   - Terminal keberangkatan jika tercantum, contoh "Terminal 1", "Terminal 2", "Terminal 3"
+   - Jika tidak ada informasi terminal, kembalikan string kosong ""
+
+7. TRANSIT
+   - Jika rute berangkat/pulang memiliki lebih dari 1 segmen (transit), tulis "{kode bandara transit} · {durasi transit}" untuk setiap leg, contoh "MNL · 2j 30m"
+   - Jika penerbangan langsung (tanpa transit), kembalikan string kosong ""
+   - transit_berangkat untuk rute_berangkat, transit_pulang untuk rute_pulang
+
+8. BAGASI CHECK-IN PER LEG
+   - bagasi_checkin_berangkat_kg dan bagasi_checkin_pulang_kg: jika tiket membedakan jatah bagasi check-in per arah, isi sesuai masing-masing
+   - Jika tidak dibedakan, isi keduanya dengan nilai bagasi_checkin_kg yang sama
 
 Kembalikan JSON saja. Tidak ada penjelasan, tidak ada markdown.`
 

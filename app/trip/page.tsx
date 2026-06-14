@@ -3,7 +3,7 @@ import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { tripApi, remindersApi } from "@/lib/trip/api";
-import { Button, Badge, Spinner } from "@/components/ui";
+import { Button, Badge, Spinner, TextInput, ConfirmDialog } from "@/components/ui";
 import type { Trip, PaymentSchedule } from "@/types/trip";
 import { clsx } from "clsx";
 
@@ -40,13 +40,33 @@ function TripDashboardInner() {
   const [reminders, setReminders] = useState<PaymentSchedule[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState("");
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState<Trip | null>(null);
 
   useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search.trim()), 400);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  const reload = () => {
     setLoading(true);
-    Promise.all([tripApi.list(statusFilter || undefined, tripType), remindersApi.upcoming()])
+    Promise.all([tripApi.list(statusFilter || undefined, tripType, debouncedSearch || undefined), remindersApi.upcoming()])
       .then(([t, r]) => { setTrips(t); setReminders(r); })
       .finally(() => setLoading(false));
-  }, [statusFilter, tripType]);
+  };
+
+  useEffect(() => {
+    reload();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [statusFilter, tripType, debouncedSearch]);
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    await tripApi.delete(deleteTarget.id);
+    setDeleteTarget(null);
+    reload();
+  };
 
   const statuses = ["", "draft", "confirmed", "ongoing", "done", "cancelled"];
 
@@ -67,6 +87,15 @@ function TripDashboardInner() {
         <div className="grid grid-cols-1 xl:grid-cols-[1fr_300px] gap-5">
           {/* Left — trip table */}
           <div className="bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden">
+            {/* Search */}
+            <div className="px-4 pt-3">
+              <TextInput
+                value={search}
+                onChange={setSearch}
+                placeholder="Cari nama trip..."
+                className="max-w-xs"
+              />
+            </div>
             {/* Filter */}
             <div className="flex items-center gap-2 px-4 py-3 border-b border-neutral-800 flex-wrap">
               {statuses.map((s) => (
@@ -90,14 +119,14 @@ function TripDashboardInner() {
                 <table className="w-full">
                   <thead>
                     <tr className="border-b border-neutral-800">
-                      {["Nama Trip", "Tanggal", "Durasi", "Total Pax", "Status"].map((h) => (
+                      {["Nama Trip", "Tanggal", "Durasi", "Total Pax", "Status", ""].map((h) => (
                         <th key={h} className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-neutral-600">{h}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-neutral-800/50">
                     {trips.length === 0 && (
-                      <tr><td colSpan={5} className="px-4 py-10 text-center text-sm text-neutral-600">Belum ada trip</td></tr>
+                      <tr><td colSpan={6} className="px-4 py-10 text-center text-sm text-neutral-600">Belum ada trip</td></tr>
                     )}
                     {trips.map((t) => {
                       const hari = Math.round((new Date(t.tgl_pulang).getTime() - new Date(t.tgl_berangkat).getTime()) / 86400000) + 1;
@@ -105,12 +134,23 @@ function TripDashboardInner() {
                         <tr key={t.id}
                           onClick={() => window.location.href = `/trip/${t.id}`}
                           className="hover:bg-white/[0.03] cursor-pointer transition-colors">
-                          <td className="px-4 py-3 text-sm font-medium text-neutral-100">{t.nama_trip}</td>
+                          <td className="px-4 py-3 text-sm font-medium text-neutral-100">
+                            {t.nama_trip}
+                          </td>
                           <td className="px-4 py-3 text-xs text-neutral-400 whitespace-nowrap">{t.tgl_berangkat}</td>
                           <td className="px-4 py-3 text-xs text-neutral-400">{hari}H{hari - 1}M</td>
                           <td className="px-4 py-3 text-xs text-neutral-400">{t.total_pax} pax</td>
                           <td className="px-4 py-3">
                             <Badge variant={STATUS_BADGE[t.status]}>{t.status}</Badge>
+                          </td>
+                          <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
+                            <button
+                              onClick={() => setDeleteTarget(t)}
+                              className="text-neutral-600 hover:text-red-400 transition-colors cursor-pointer text-sm"
+                              title="Hapus trip"
+                            >
+                              ✕
+                            </button>
                           </td>
                         </tr>
                       );
@@ -144,6 +184,14 @@ function TripDashboardInner() {
           </div>
         </div>
       </div>
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        title="Hapus Trip"
+        message={`Hapus trip "${deleteTarget?.nama_trip}"?`}
+        onConfirm={handleDelete}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </div>
   );
 }

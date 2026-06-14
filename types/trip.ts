@@ -1,11 +1,12 @@
 // types/trip.ts
+import type { KursEntry } from "@/types/rab";
 
 export type TripStatus = "draft" | "confirmed" | "ongoing" | "done" | "cancelled";
 export type PesertaTitle = "MR" | "MRS" | "MS" | "MISS" | "MASTER" | "TOUR_LEADER";
 export type RoomType = "DOUBLE" | "TWIN" | "SINGLE" | "TRIPLE";
 export type MealType = "MUSLIM" | "NON_MUSLIM";
 export type VisaStatus = "not_required" | "pending" | "uploaded" | "approved" | "rejected";
-export type PaymentJenis = "dp" | "pelunasan" | "lainnya";
+export type PaymentJenis = "dp" | "pelunasan" | "harga_paket" | "tipping" | "harga_visa" | "optional_tour" | "diskon" | "lainnya";
 export type TripCategory = "domestik" | "internasional";
 export type TripType = "open_trip" | "private_trip";
 
@@ -22,6 +23,7 @@ export interface Trip {
   trip_type: TripType;
   status: TripStatus;
   drive_folder_id?: string;
+  transportasi_kurs_list?: KursEntry[];
   created_at: string;
   updated_at: string;
 }
@@ -44,6 +46,7 @@ export interface ManifestPeserta {
   meals?: MealType;
   kepala_keluarga?: string;
   note?: string;
+  no_telp?: string;
   paspor_drive_file_id?: string;
   ktp_drive_file_id?: string;
   visa_drive_file_id?: string;
@@ -73,6 +76,7 @@ export interface TripPayment {
   catatan?: string;
   created_by?: string;
   created_at: string;
+  updated_at: string;
 }
 
 export interface PaymentSchedule {
@@ -111,6 +115,13 @@ export interface ManifestKeberangkatan {
   klien?: string;
   tiket_drive_file_id?: string;
   limit_pembayaran?: string;
+  terminal?: string;
+  transit_berangkat?: string;
+  transit_pulang?: string;
+  bagasi_checkin_berangkat_kg?: number;
+  bagasi_checkin_pulang_kg?: number;
+  harga_tiket_berangkat?: number;
+  harga_tiket_pulang?: number;
   // Joined from manifest_peserta
   title?: string;
   nama_lengkap?: string;
@@ -145,6 +156,11 @@ export interface TicketOCRResult {
   jam_pulang: string;
   bagasi_kabin_kg: number;
   bagasi_checkin_kg: number;
+  terminal: string;
+  transit_berangkat: string;
+  transit_pulang: string;
+  bagasi_checkin_berangkat_kg: number;
+  bagasi_checkin_pulang_kg: number;
   booking_groups?: TicketOCRBookingGroup[];
   peserta: TicketOCRPeserta[];
 }
@@ -173,6 +189,9 @@ export interface ManifestHotel {
   nota_drive_file_id?: string;
   waktu_pembayaran?: string;
   payment_schedule_id?: string;
+  voucher_atas_nama?: string;
+  metode_pembayaran?: string;
+  harga_realisasi?: number;
   created_at: string;
   updated_at: string;
 }
@@ -188,7 +207,7 @@ export interface HotelOCRResult {
   kurs: number;
 }
 
-export type TransportJenis = "SHINKANSEN" | "LOKAL";
+export type TransportJenis = "SHINKANSEN" | "LOKAL" | "ICOCA_SUICA";
 
 export interface ManifestTransportasi {
   id?: string;
@@ -204,6 +223,8 @@ export interface ManifestTransportasi {
   harga_idr?: number;
   total_idr?: number;
   kurs?: number;
+  kurs_id?: string;
+  kurs_label?: string;
   harga_satuan?: string;
   nota_drive_file_id?: string;
   waktu_pembayaran?: string;

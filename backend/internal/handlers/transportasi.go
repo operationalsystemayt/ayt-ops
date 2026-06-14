@@ -31,6 +31,7 @@ func (h *Handler) ListTransportasi(w http.ResponseWriter, r *http.Request) {
 			mt.vendor, mt.tgl_trip::text, mt.tipe_kendaraan, mt.keterangan_rute,
 			mt.qty, mt.kategori_usia,
 			mt.harga_jpy, mt.harga_idr, mt.total_idr, mt.kurs,
+			mt.kurs_id, mt.kurs_label,
 			mt.harga_satuan,
 			mt.nota_drive_file_id,
 			ps.deadline::text,
@@ -55,6 +56,7 @@ func (h *Handler) ListTransportasi(w http.ResponseWriter, r *http.Request) {
 			&item.Vendor, &item.TglTrip, &item.TipeKendaraan, &item.KeteranganRute,
 			&item.Qty, &item.KategoriUsia,
 			&item.HargaJpy, &item.HargaIdr, &item.TotalIdr, &item.Kurs,
+			&item.KursId, &item.KursLabel,
 			&item.HargaSatuan,
 			&item.NotaDriveFileId,
 			&item.WaktuPembayaran,
@@ -85,6 +87,8 @@ func (h *Handler) CreateTransportasi(w http.ResponseWriter, r *http.Request) {
 		HargaIdr        *float64 `json:"harga_idr"`
 		TotalIdr        *float64 `json:"total_idr"`
 		Kurs            *float64 `json:"kurs"`
+		KursId          *string  `json:"kurs_id"`
+		KursLabel       *string  `json:"kurs_label"`
 		HargaSatuan     *string  `json:"harga_satuan"`
 		NotaDriveFileId *string  `json:"nota_drive_file_id"`
 		WaktuPembayaran *string  `json:"waktu_pembayaran"`
@@ -96,7 +100,8 @@ func (h *Handler) CreateTransportasi(w http.ResponseWriter, r *http.Request) {
 
 	// Auto-compute harga_idr
 	if body.HargaIdr == nil && body.HargaJpy != nil && body.Kurs != nil {
-		if strings.ToUpper(body.Jenis) == "SHINKANSEN" && body.Qty != nil {
+		jenisUpper := strings.ToUpper(body.Jenis)
+		if (jenisUpper == "SHINKANSEN" || jenisUpper == "ICOCA_SUICA") && body.Qty != nil {
 			v := float64(*body.Qty) * *body.HargaJpy * *body.Kurs
 			body.HargaIdr = &v
 		} else {
@@ -129,31 +134,31 @@ func (h *Handler) CreateTransportasi(w http.ResponseWriter, r *http.Request) {
 	err := h.DB.QueryRow(ctx, `
 		INSERT INTO manifest_transportasi
 		  (trip_id, jenis, vendor, tgl_trip, tipe_kendaraan, keterangan_rute,
-		   qty, kategori_usia, harga_jpy, harga_idr, total_idr, kurs,
+		   qty, kategori_usia, harga_jpy, harga_idr, total_idr, kurs, kurs_id, kurs_label,
 		   harga_satuan, nota_drive_file_id, payment_schedule_id)
 		VALUES
 		  ($1::uuid, $2::transport_jenis, $3, $4::date, $5, $6,
-		   $7, $8, $9, $10, $11, $12,
-		   $13, $14, $15::uuid)
+		   $7, $8, $9, $10, $11, $12, $13, $14,
+		   $15, $16, $17::uuid)
 		RETURNING
 			id::text, trip_id::text,
 			jenis::text,
 			vendor, tgl_trip::text, tipe_kendaraan, keterangan_rute,
 			qty, kategori_usia,
-			harga_jpy, harga_idr, total_idr, kurs,
+			harga_jpy, harga_idr, total_idr, kurs, kurs_id, kurs_label,
 			harga_satuan,
 			nota_drive_file_id,
 			payment_schedule_id::text,
 			created_at, updated_at`,
 		tripID, body.Jenis, body.Vendor, body.TglTrip, body.TipeKendaraan, body.KeteranganRute,
-		body.Qty, body.KategoriUsia, body.HargaJpy, body.HargaIdr, body.TotalIdr, body.Kurs,
+		body.Qty, body.KategoriUsia, body.HargaJpy, body.HargaIdr, body.TotalIdr, body.Kurs, body.KursId, body.KursLabel,
 		body.HargaSatuan, body.NotaDriveFileId, paymentScheduleID,
 	).Scan(
 		&item.ID, &item.TripID,
 		&item.Jenis,
 		&item.Vendor, &item.TglTrip, &item.TipeKendaraan, &item.KeteranganRute,
 		&item.Qty, &item.KategoriUsia,
-		&item.HargaJpy, &item.HargaIdr, &item.TotalIdr, &item.Kurs,
+		&item.HargaJpy, &item.HargaIdr, &item.TotalIdr, &item.Kurs, &item.KursId, &item.KursLabel,
 		&item.HargaSatuan,
 		&item.NotaDriveFileId,
 		&item.PaymentScheduleId,
@@ -186,6 +191,8 @@ func (h *Handler) UpdateTransportasi(w http.ResponseWriter, r *http.Request) {
 		HargaIdr        *float64 `json:"harga_idr"`
 		TotalIdr        *float64 `json:"total_idr"`
 		Kurs            *float64 `json:"kurs"`
+		KursId          *string  `json:"kurs_id"`
+		KursLabel       *string  `json:"kurs_label"`
 		HargaSatuan     *string  `json:"harga_satuan"`
 		NotaDriveFileId *string  `json:"nota_drive_file_id"`
 		WaktuPembayaran *string  `json:"waktu_pembayaran"`
@@ -197,7 +204,11 @@ func (h *Handler) UpdateTransportasi(w http.ResponseWriter, r *http.Request) {
 
 	// Auto-compute harga_idr
 	if body.HargaIdr == nil && body.HargaJpy != nil && body.Kurs != nil {
-		if body.Jenis != nil && strings.ToUpper(*body.Jenis) == "SHINKANSEN" && body.Qty != nil {
+		jenisUpper := ""
+		if body.Jenis != nil {
+			jenisUpper = strings.ToUpper(*body.Jenis)
+		}
+		if (jenisUpper == "SHINKANSEN" || jenisUpper == "ICOCA_SUICA") && body.Qty != nil {
 			v := float64(*body.Qty) * *body.HargaJpy * *body.Kurs
 			body.HargaIdr = &v
 		} else {
@@ -245,12 +256,15 @@ func (h *Handler) UpdateTransportasi(w http.ResponseWriter, r *http.Request) {
 			harga_idr        = COALESCE($10, harga_idr),
 			total_idr        = COALESCE($11, total_idr),
 			kurs             = COALESCE($12, kurs),
-			harga_satuan     = COALESCE($13, harga_satuan),
-			nota_drive_file_id = COALESCE($14, nota_drive_file_id),
-			updated_at       = $15
+			kurs_id          = COALESCE($13, kurs_id),
+			kurs_label       = COALESCE($14, kurs_label),
+			harga_satuan     = COALESCE($15, harga_satuan),
+			nota_drive_file_id = COALESCE($16, nota_drive_file_id),
+			updated_at       = $17
 		WHERE id = $1::uuid`,
 		tid, nilIfEmpty(body.Jenis), body.Vendor, body.TglTrip, body.TipeKendaraan, body.KeteranganRute,
 		body.Qty, body.KategoriUsia, body.HargaJpy, body.HargaIdr, body.TotalIdr, body.Kurs,
+		body.KursId, body.KursLabel,
 		body.HargaSatuan, body.NotaDriveFileId, time.Now(),
 	)
 	if err != nil {

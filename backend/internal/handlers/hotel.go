@@ -44,6 +44,7 @@ func (h *Handler) ListHotel(w http.ResponseWriter, r *http.Request) {
 			mh.nota_drive_file_id,
 			ps.deadline::text,
 			mh.payment_schedule_id::text,
+			mh.voucher_atas_nama, mh.metode_pembayaran, mh.harga_realisasi,
 			mh.created_at, mh.updated_at
 		FROM manifest_hotel mh
 		LEFT JOIN payment_schedules ps ON ps.id = mh.payment_schedule_id
@@ -71,6 +72,7 @@ func (h *Handler) ListHotel(w http.ResponseWriter, r *http.Request) {
 			&item.NotaDriveFileId,
 			&item.WaktuPembayaran,
 			&item.PaymentScheduleId,
+			&item.VoucherAtasNama, &item.MetodePembayaran, &item.HargaRealisasi,
 			&item.CreatedAt, &item.UpdatedAt,
 		); err != nil {
 			jsonErr(w, 500, err.Error())
@@ -109,6 +111,9 @@ func (h *Handler) CreateHotel(w http.ResponseWriter, r *http.Request) {
 		PesertaIds         []string `json:"peserta_ids"`
 		NotaDriveFileId    *string  `json:"nota_drive_file_id"`
 		WaktuPembayaran    *string  `json:"waktu_pembayaran"`
+		VoucherAtasNama    *string  `json:"voucher_atas_nama"`
+		MetodePembayaran   *string  `json:"metode_pembayaran"`
+		HargaRealisasi     *float64 `json:"harga_realisasi"`
 	}
 	if err := decode(r, &body); err != nil {
 		jsonErr(w, 400, "invalid body")
@@ -151,12 +156,14 @@ func (h *Handler) CreateHotel(w http.ResponseWriter, r *http.Request) {
 		  (trip_id, rute, nama_hotel, nama_agent, confirmation_number,
 		   tgl_stay_mulai, tgl_stay_selesai, jumlah_room, tipe_room, jumlah_malam,
 		   harga_jpy, harga_idr, total_idr, harga_jual_idr, kurs,
-		   peserta_ids, nota_drive_file_id, payment_schedule_id)
+		   peserta_ids, nota_drive_file_id, payment_schedule_id,
+		   voucher_atas_nama, metode_pembayaran, harga_realisasi)
 		VALUES
 		  ($1::uuid, $2, $3, $4, $5,
 		   $6::date, $7::date, $8, $9::room_type, $10,
 		   $11, $12, $13, $14, $15,
-		   %s, $16, $17::uuid)
+		   %s, $16, $17::uuid,
+		   $18, $19, $20)
 		RETURNING
 			id::text, trip_id::text,
 			rute, nama_hotel, nama_agent, confirmation_number,
@@ -165,12 +172,14 @@ func (h *Handler) CreateHotel(w http.ResponseWriter, r *http.Request) {
 			harga_jpy, harga_idr, total_idr, harga_jual_idr, kurs,
 			nota_drive_file_id,
 			payment_schedule_id::text,
+			voucher_atas_nama, metode_pembayaran, harga_realisasi,
 			created_at, updated_at`,
 		pesertaArrLiteral),
 		tripID, body.Rute, body.NamaHotel, body.NamaAgent, body.ConfirmationNumber,
 		body.TglStayMulai, body.TglStaySelesai, body.JumlahRoom, nilIfEmpty(body.TipeRoom), body.JumlahMalam,
 		body.HargaJpy, body.HargaIdr, body.TotalIdr, body.HargaJualIdr, body.Kurs,
 		body.NotaDriveFileId, paymentScheduleID,
+		body.VoucherAtasNama, body.MetodePembayaran, body.HargaRealisasi,
 	).Scan(
 		&item.ID, &item.TripID,
 		&item.Rute, &item.NamaHotel, &item.NamaAgent, &item.ConfirmationNumber,
@@ -179,6 +188,7 @@ func (h *Handler) CreateHotel(w http.ResponseWriter, r *http.Request) {
 		&item.HargaJpy, &item.HargaIdr, &item.TotalIdr, &item.HargaJualIdr, &item.Kurs,
 		&item.NotaDriveFileId,
 		&item.PaymentScheduleId,
+		&item.VoucherAtasNama, &item.MetodePembayaran, &item.HargaRealisasi,
 		&item.CreatedAt, &item.UpdatedAt,
 	)
 	if err != nil {
@@ -216,6 +226,9 @@ func (h *Handler) UpdateHotel(w http.ResponseWriter, r *http.Request) {
 		PesertaIds         []string `json:"peserta_ids"`
 		NotaDriveFileId    *string  `json:"nota_drive_file_id"`
 		WaktuPembayaran    *string  `json:"waktu_pembayaran"`
+		VoucherAtasNama    *string  `json:"voucher_atas_nama"`
+		MetodePembayaran   *string  `json:"metode_pembayaran"`
+		HargaRealisasi     *float64 `json:"harga_realisasi"`
 	}
 	if err := decode(r, &body); err != nil {
 		jsonErr(w, 400, "invalid body")
@@ -275,6 +288,9 @@ func (h *Handler) UpdateHotel(w http.ResponseWriter, r *http.Request) {
 			kurs                = COALESCE($15, kurs),
 			peserta_ids         = %s,
 			nota_drive_file_id  = COALESCE($16, nota_drive_file_id),
+			voucher_atas_nama   = COALESCE($18, voucher_atas_nama),
+			metode_pembayaran   = COALESCE($19, metode_pembayaran),
+			harga_realisasi     = COALESCE($20, harga_realisasi),
 			updated_at          = $17
 		WHERE id = $1::uuid`,
 		pesertaArrLiteral),
@@ -282,6 +298,7 @@ func (h *Handler) UpdateHotel(w http.ResponseWriter, r *http.Request) {
 		body.TglStayMulai, body.TglStaySelesai, body.JumlahRoom, nilIfEmpty(body.TipeRoom), body.JumlahMalam,
 		body.HargaJpy, body.HargaIdr, body.TotalIdr, body.HargaJualIdr, body.Kurs,
 		body.NotaDriveFileId, time.Now(),
+		body.VoucherAtasNama, body.MetodePembayaran, body.HargaRealisasi,
 	)
 	if err != nil {
 		jsonErr(w, 500, err.Error())

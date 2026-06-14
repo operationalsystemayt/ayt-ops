@@ -22,7 +22,7 @@ func (h *Handler) ListPayments(w http.ResponseWriter, r *http.Request) {
 	rows, err := h.DB.Query(r.Context(), `
 		SELECT p.id::text, p.trip_id::text, p.peserta_id::text, mp.nama_lengkap,
 		       p.jenis::text, p.amount, p.tgl_bayar::text, p.bukti_drive_file_id,
-		       p.catatan, p.created_by, p.created_at
+		       p.catatan, p.created_by, p.created_at, p.updated_at
 		FROM trip_payments p
 		LEFT JOIN manifest_peserta mp ON mp.id = p.peserta_id
 		WHERE p.trip_id = $1::uuid
@@ -37,7 +37,7 @@ func (h *Handler) ListPayments(w http.ResponseWriter, r *http.Request) {
 		var p models.TripPayment
 		if err := rows.Scan(&p.ID, &p.TripID, &p.PesertaID, &p.NamaPeserta,
 			&p.Jenis, &p.Amount, &p.TglBayar, &p.BuktiDriveFileID,
-			&p.Catatan, &p.CreatedBy, &p.CreatedAt); err != nil {
+			&p.Catatan, &p.CreatedBy, &p.CreatedAt, &p.UpdatedAt); err != nil {
 			jsonErr(w, 500, err.Error()); return
 		}
 		list = append(list, p)
@@ -74,12 +74,12 @@ func (h *Handler) CreatePayment(w http.ResponseWriter, r *http.Request) {
 			VALUES ($1::uuid, $2::uuid, $3::payment_jenis, $4, $5::date, $6, $7)
 			RETURNING id::text, trip_id::text, peserta_id::text, NULL::text,
 			          jenis::text, amount, tgl_bayar::text, bukti_drive_file_id,
-			          catatan, created_by, created_at`,
+			          catatan, created_by, created_at, updated_at`,
 			tripID, body.PesertaID, body.Jenis, body.Amount, body.TglBayar,
 			body.Catatan, body.CreatedBy,
 		).Scan(&p.ID, &p.TripID, &p.PesertaID, &p.NamaPeserta,
 			&p.Jenis, &p.Amount, &p.TglBayar, &p.BuktiDriveFileID,
-			&p.Catatan, &p.CreatedBy, &p.CreatedAt)
+			&p.Catatan, &p.CreatedBy, &p.CreatedAt, &p.UpdatedAt)
 		if err2 != nil {
 			jsonErr(w, 500, err2.Error()); return
 		}
@@ -192,15 +192,142 @@ func (h *Handler) CreatePayment(w http.ResponseWriter, r *http.Request) {
 		VALUES ($1::uuid, $2::uuid, $3::payment_jenis, $4, $5::date, $6, $7, $8)
 		RETURNING id::text, trip_id::text, peserta_id::text, NULL::text,
 		          jenis::text, amount, tgl_bayar::text, bukti_drive_file_id,
-		          catatan, created_by, created_at`,
+		          catatan, created_by, created_at, updated_at`,
 		tripID, pesertaIDPtr, jenis, amount, tglBayar, buktiDriveFileID, catatanPtr, createdByPtr,
 	).Scan(&p.ID, &p.TripID, &p.PesertaID, &p.NamaPeserta,
 		&p.Jenis, &p.Amount, &p.TglBayar, &p.BuktiDriveFileID,
-		&p.Catatan, &p.CreatedBy, &p.CreatedAt)
+		&p.Catatan, &p.CreatedBy, &p.CreatedAt, &p.UpdatedAt)
 	if err != nil {
 		jsonErr(w, 500, err.Error()); return
 	}
 	w.WriteHeader(201)
+	jsonOK(w, p)
+}
+
+func (h *Handler) UpdatePayment(w http.ResponseWriter, r *http.Request) {
+	tripID := chi.URLParam(r, "id")
+	payID := chi.URLParam(r, "pay")
+	ctx := r.Context()
+
+	if err := r.ParseMultipartForm(30 << 20); err != nil {
+		jsonErr(w, 400, "invalid form"); return
+	}
+
+	pesertaID := r.FormValue("peserta_id")
+	jenis := r.FormValue("jenis")
+	if jenis == "" {
+		jenis = "dp"
+	}
+	amountStr := r.FormValue("amount")
+	tglBayar := r.FormValue("tgl_bayar")
+	catatan := r.FormValue("catatan")
+
+	amount, err := strconv.ParseFloat(amountStr, 64)
+	if err != nil || amount <= 0 {
+		jsonErr(w, 400, "amount must be a positive number"); return
+	}
+	if tglBayar == "" {
+		jsonErr(w, 400, "tgl_bayar required"); return
+	}
+
+	var pesertaIDPtr *string
+	if pesertaID != "" {
+		pesertaIDPtr = &pesertaID
+	}
+	var catatanPtr *string
+	if catatan != "" {
+		catatanPtr = &catatan
+	}
+
+	// Optional bukti file re-upload
+	var buktiDriveFileID *string
+	buktiFile, buktiHeader, buktiErr := r.FormFile("bukti")
+	if buktiErr == nil {
+		defer buktiFile.Close()
+
+		var namaTrip string
+		var driveFolderID *string
+		err = h.DB.QueryRow(ctx,
+			`SELECT nama_trip, drive_folder_id FROM trips WHERE id = $1::uuid AND deleted_at IS NULL`,
+			tripID,
+		).Scan(&namaTrip, &driveFolderID)
+		if err != nil {
+			jsonErr(w, 404, "trip not found"); return
+		}
+
+		pesertaNama := "umum"
+		if pesertaIDPtr != nil {
+			var nm string
+			if scanErr := h.DB.QueryRow(ctx,
+				`SELECT nama_lengkap FROM manifest_peserta WHERE id = $1::uuid`,
+				*pesertaIDPtr,
+			).Scan(&nm); scanErr == nil {
+				pesertaNama = nm
+			}
+		}
+
+		drv, drvErr := services.NewDriveService(ctx)
+		if drvErr != nil {
+			jsonErr(w, 503, drvErr.Error()); return
+		}
+
+		folderID, fErr := h.ensureTripFolder(ctx, drv, tripID)
+		if fErr != nil {
+			jsonErr(w, 500, "create trip folder: "+fErr.Error()); return
+		}
+		driveFolderID = &folderID
+
+		paymentFolder, fErr := drv.EnsureFolder(ctx, *driveFolderID, "13. Data Pembayaran")
+		if fErr != nil {
+			jsonErr(w, 500, fErr.Error()); return
+		}
+
+		tglForName := strings.ReplaceAll(tglBayar, "-", "")
+		uploadFileName := fmt.Sprintf("%s_%s_%s", slugifyName(pesertaNama), tglForName, buktiHeader.Filename)
+		mimeType := buktiHeader.Header.Get("Content-Type")
+		if mimeType == "" || mimeType == "application/octet-stream" {
+			mimeType = detectMime(mimeType, buktiHeader.Filename)
+		}
+
+		fileID, _, uploadErr := drv.UploadFile(ctx, paymentFolder, uploadFileName, mimeType, buktiFile)
+		if uploadErr != nil {
+			log.Printf("[PAYMENT] bukti upload error: %v", uploadErr)
+			jsonErr(w, 500, "drive upload failed: "+uploadErr.Error()); return
+		}
+		buktiDriveFileID = &fileID
+		log.Printf("[PAYMENT] bukti re-uploaded: fileID=%s", fileID)
+	}
+
+	_, err = h.DB.Exec(ctx, `
+		UPDATE trip_payments SET
+		  peserta_id          = $3::uuid,
+		  jenis               = $4::payment_jenis,
+		  amount              = $5,
+		  tgl_bayar           = $6::date,
+		  catatan             = $7,
+		  bukti_drive_file_id = COALESCE($8, bukti_drive_file_id),
+		  updated_at          = NOW()
+		WHERE id = $1::uuid AND trip_id = $2::uuid`,
+		payID, tripID, pesertaIDPtr, jenis, amount, tglBayar, catatanPtr, buktiDriveFileID,
+	)
+	if err != nil {
+		jsonErr(w, 500, err.Error()); return
+	}
+
+	var p models.TripPayment
+	err = h.DB.QueryRow(ctx, `
+		SELECT p.id::text, p.trip_id::text, p.peserta_id::text, mp.nama_lengkap,
+		       p.jenis::text, p.amount, p.tgl_bayar::text, p.bukti_drive_file_id,
+		       p.catatan, p.created_by, p.created_at, p.updated_at
+		FROM trip_payments p
+		LEFT JOIN manifest_peserta mp ON mp.id = p.peserta_id
+		WHERE p.id = $1::uuid`, payID,
+	).Scan(&p.ID, &p.TripID, &p.PesertaID, &p.NamaPeserta,
+		&p.Jenis, &p.Amount, &p.TglBayar, &p.BuktiDriveFileID,
+		&p.Catatan, &p.CreatedBy, &p.CreatedAt, &p.UpdatedAt)
+	if err != nil {
+		jsonErr(w, 500, err.Error()); return
+	}
 	jsonOK(w, p)
 }
 

@@ -2,7 +2,8 @@
 "use client";
 import Image from "next/image";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { Suspense } from "react";
+import { usePathname, useSearchParams } from "next/navigation";
 import { EnvBadge } from "./EnvBadge";
 import { ThemeToggle } from "./ThemeToggle";
 import { appConfig } from "@/config/app";
@@ -11,7 +12,45 @@ import { clsx } from "clsx";
 const NAV = [
   { href: "/rab", label: "RAB Master" },
   { href: "/trip", label: "Open Trip" },
+  { href: "/trip?type=private", label: "Private Trip" },
 ];
+
+function NavLink({ href, label, active }: { href: string; label: string; active: boolean }) {
+  return (
+    <Link
+      href={href}
+      className={clsx(
+        "px-4 py-2 rounded-lg text-sm font-medium transition-colors",
+        active
+          ? "text-white"
+          : "text-gray-500 hover:text-gray-800 hover:bg-gray-100"
+      )}
+      style={active ? { backgroundColor: "var(--ayt-blue)" } : {}}
+    >
+      {label}
+    </Link>
+  );
+}
+
+function NavLinks({ path, isPrivate }: { path: string; isPrivate: boolean }) {
+  return (
+    <>
+      {NAV.map((item) => {
+        const isTrip = item.href.startsWith("/trip");
+        const itemIsPrivate = item.href.includes("type=private");
+        const active = isTrip
+          ? path.startsWith("/trip") && itemIsPrivate === isPrivate
+          : path.startsWith(item.href);
+        return <NavLink key={item.href} href={item.href} label={item.label} active={active} />;
+      })}
+    </>
+  );
+}
+
+function NavLinksWithParams({ path }: { path: string }) {
+  const searchParams = useSearchParams();
+  return <NavLinks path={path} isPrivate={searchParams.get("type") === "private"} />;
+}
 
 export function Topbar() {
   const path = usePathname();
@@ -39,23 +78,9 @@ export function Topbar() {
 
         {/* Nav */}
         <nav className="flex items-center gap-1">
-          {NAV.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={clsx(
-                "px-4 py-2 rounded-lg text-sm font-medium transition-colors",
-                path.startsWith(item.href)
-                  ? "text-white"
-                  : "text-gray-500 hover:text-gray-800 hover:bg-gray-100"
-              )}
-              style={path.startsWith(item.href)
-                ? { backgroundColor: "var(--ayt-blue)" }
-                : {}}
-            >
-              {item.label}
-            </Link>
-          ))}
+          <Suspense fallback={<NavLinks path={path} isPrivate={false} />}>
+            <NavLinksWithParams path={path} />
+          </Suspense>
         </nav>
 
         {/* Right */}

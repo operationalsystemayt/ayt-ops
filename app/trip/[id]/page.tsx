@@ -2,7 +2,8 @@
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { tripApi } from "@/lib/trip/api";
-import { Badge, Spinner } from "@/components/ui";
+import { Badge, Spinner, TextInput } from "@/components/ui";
+import { useAutoSave } from "@/lib/hooks/useAutoSave";
 import { ManifestInti } from "@/components/trip/tabs/ManifestInti";
 import { ManifestKeberangkatan } from "@/components/trip/tabs/ManifestKeberangkatan";
 import { ManifestHotel } from "@/components/trip/tabs/ManifestHotel";
@@ -40,7 +41,7 @@ const TABS = [
   { key: "2d", label: "Transportasi" },
   { key: "2e", label: "Optional Tour" },
   { key: "2f", label: "Visa" },
-  { key: "2g", label: "Payment" },
+  { key: "2g", label: "Data Pemasukan" },
   { key: "2h", label: "Notes" },
   { key: "2i", label: "Itinerary" },
   { key: "2j", label: "Asuransi" },
@@ -81,7 +82,7 @@ export default function TripDetailPage() {
         <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-5 mb-5">
           <div className="flex items-start justify-between flex-wrap gap-3">
             <div>
-              <h1 className="text-lg font-bold text-neutral-100">{trip.nama_trip}</h1>
+              <EditableTripTitle trip={trip} onSaved={(nama) => setTrip(t => t ? { ...t, nama_trip: nama } : t)} />
               <div className="flex items-center gap-3 mt-1.5 flex-wrap">
                 <span className="text-xs text-neutral-500">{trip.tgl_berangkat} → {trip.tgl_pulang}</span>
                 <span className="text-xs text-neutral-500">{hari}H / {trip.total_pax} pax</span>
@@ -179,5 +180,40 @@ export default function TripDetailPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+// Click-to-edit trip title; auto-saves via debounced PATCH after the user stops typing.
+function EditableTripTitle({ trip, onSaved }: { trip: Trip; onSaved: (nama: string) => void }) {
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(trip.nama_trip);
+
+  useAutoSave(value, async (v) => {
+    if (v.trim() && v !== trip.nama_trip) {
+      await tripApi.update(trip.id, { nama_trip: v });
+      onSaved(v);
+    }
+  });
+
+  if (!editing) {
+    return (
+      <h1
+        onClick={() => setEditing(true)}
+        className="text-lg font-bold text-neutral-100 cursor-text hover:underline inline-block"
+      >
+        {value}
+      </h1>
+    );
+  }
+
+  return (
+    <TextInput
+      value={value}
+      onChange={setValue}
+      autoFocus
+      onBlur={() => setEditing(false)}
+      onKeyDown={(e) => { if (e.key === "Enter") setEditing(false); }}
+      className="text-lg font-bold"
+    />
   );
 }

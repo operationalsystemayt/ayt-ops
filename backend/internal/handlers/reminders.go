@@ -41,7 +41,7 @@ func (h *Handler) GetLaba(w http.ResponseWriter, r *http.Request) {
 	laba.TripID = tripID
 
 	h.DB.QueryRow(r.Context(),
-		`SELECT COALESCE(SUM(amount),0) FROM trip_payments WHERE trip_id=$1::uuid`, tripID,
+		`SELECT COALESCE(SUM(CASE WHEN jenis = 'diskon' THEN -amount ELSE amount END),0) FROM trip_payments WHERE trip_id=$1::uuid`, tripID,
 	).Scan(&laba.TotalPemasukan)
 
 	h.DB.QueryRow(r.Context(),

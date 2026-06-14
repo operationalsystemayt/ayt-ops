@@ -6,7 +6,18 @@ import type { TripPayment, ManifestPeserta, PaymentJenis } from "@/types/trip";
 import { formatIDR } from "@/lib/rab/calculations";
 import { clsx } from "clsx";
 
-const JENIS: PaymentJenis[] = ["dp", "pelunasan", "lainnya"];
+const JENIS: PaymentJenis[] = ["dp", "pelunasan", "harga_paket", "tipping", "harga_visa", "optional_tour", "diskon", "lainnya"];
+
+const JENIS_LABELS: Record<PaymentJenis, string> = {
+  dp: "DP",
+  pelunasan: "Pelunasan",
+  harga_paket: "Harga Paket",
+  tipping: "Tipping",
+  harga_visa: "Harga Visa",
+  optional_tour: "Optional Tour",
+  diskon: "Diskon",
+  lainnya: "Lainnya",
+};
 
 const inp = "w-full rounded-lg bg-neutral-900 border border-neutral-700 px-2 py-1.5 text-xs text-neutral-100 placeholder-neutral-600 focus:outline-none focus:border-teal-500 transition-colors";
 const sel = "w-full rounded-lg bg-neutral-900 border border-neutral-700 px-2 py-1.5 text-xs text-neutral-100 focus:outline-none focus:border-teal-500 transition-colors";
@@ -18,6 +29,7 @@ export function TripPayments({ tripId }: Props) {
   const [payments, setPayments] = useState<TripPayment[]>([]);
   const [peserta, setPeserta] = useState<ManifestPeserta[]>([]);
   const [adding, setAdding] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [csvUploading, setCsvUploading] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
@@ -58,7 +70,22 @@ export function TripPayments({ tripId }: Props) {
       catatan: "",
       buktiFile: null,
     });
+    setEditingId(null);
     setAdding(false);
+  };
+
+  const startEdit = (p: TripPayment) => {
+    setMsg(null);
+    setForm({
+      peserta_id: p.peserta_id ?? "",
+      jenis: p.jenis,
+      amount: p.amount,
+      tgl_bayar: p.tgl_bayar,
+      catatan: p.catatan ?? "",
+      buktiFile: null,
+    });
+    setEditingId(p.id);
+    setAdding(true);
   };
 
   const handleSave = async () => {
@@ -74,10 +101,15 @@ export function TripPayments({ tripId }: Props) {
       if (form.catatan) fd.append("catatan", form.catatan);
       if (form.buktiFile) fd.append("bukti", form.buktiFile);
 
-      await paymentsApi.create(tripId, fd);
+      if (editingId) {
+        await paymentsApi.update(tripId, editingId, fd);
+        setMsg({ ok: true, text: "Pembayaran berhasil diperbarui." });
+      } else {
+        await paymentsApi.create(tripId, fd);
+        setMsg({ ok: true, text: "Pembayaran berhasil disimpan." });
+      }
       resetForm();
       load();
-      setMsg({ ok: true, text: "Pembayaran berhasil disimpan." });
     } catch (e: any) {
       setMsg({ ok: false, text: e.message ?? "Gagal menyimpan" });
     } finally {
@@ -107,7 +139,7 @@ export function TripPayments({ tripId }: Props) {
           <span className="ml-2 text-neutral-600">({payments.length} transaksi)</span>
         </span>
         <div className="flex items-center gap-2 flex-wrap">
-          <Button size="sm" variant="outline" onClick={() => { setMsg(null); setAdding(!adding); }}>
+          <Button size="sm" variant="outline" onClick={() => { if (adding) { resetForm(); } else { setMsg(null); setAdding(true); } }}>
             {adding ? "Tutup" : "+ Tambah"}
           </Button>
           <button
@@ -175,7 +207,7 @@ export function TripPayments({ tripId }: Props) {
                 className={sel}
               >
                 {JENIS.map((j) => (
-                  <option key={j} value={j}>{j}</option>
+                  <option key={j} value={j}>{JENIS_LABELS[j]}</option>
                 ))}
               </select>
             </div>
@@ -230,7 +262,7 @@ export function TripPayments({ tripId }: Props) {
           <div className="flex justify-end gap-2 mt-3 pt-3 border-t border-neutral-800">
             <Button size="sm" variant="ghost" onClick={resetForm}>Batal</Button>
             <Button size="sm" variant="primary" onClick={handleSave} loading={saving}>
-              {saving ? "Menyimpan…" : "Simpan"}
+              {saving ? "Menyimpan…" : editingId ? "Update" : "Simpan"}
             </Button>
           </div>
         </div>
@@ -260,7 +292,7 @@ export function TripPayments({ tripId }: Props) {
               <tr key={p.id} className="group hover:bg-white/[0.02] transition-colors">
                 <td className="px-3 py-2 text-xs text-neutral-500">{idx + 1}</td>
                 <td className="px-3 py-2 text-xs text-neutral-300">{p.nama_peserta ?? "Umum"}</td>
-                <td className="px-3 py-2 text-xs text-neutral-400 capitalize">{p.jenis}</td>
+                <td className="px-3 py-2 text-xs text-neutral-400">{JENIS_LABELS[p.jenis] ?? p.jenis}</td>
                 <td className="px-3 py-2 text-xs font-mono text-teal-300">{formatIDR(p.amount)}</td>
                 <td className="px-3 py-2 text-xs text-neutral-400 whitespace-nowrap">{p.tgl_bayar}</td>
                 <td className="px-3 py-2 text-xs text-neutral-500">{p.catatan ?? "—"}</td>
@@ -280,12 +312,20 @@ export function TripPayments({ tripId }: Props) {
                   )}
                 </td>
                 <td className="px-3 py-2">
-                  <button
-                    onClick={() => handleDelete(p.id)}
-                    className="opacity-0 group-hover:opacity-100 text-[10px] text-neutral-500 hover:text-red-400 transition-opacity cursor-pointer"
-                  >
-                    hapus
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => startEdit(p)}
+                      className="text-[10px] text-neutral-500 hover:text-teal-400 transition-colors cursor-pointer"
+                    >
+                      edit
+                    </button>
+                    <button
+                      onClick={() => handleDelete(p.id)}
+                      className="opacity-0 group-hover:opacity-100 text-[10px] text-neutral-500 hover:text-red-400 transition-opacity cursor-pointer"
+                    >
+                      hapus
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}

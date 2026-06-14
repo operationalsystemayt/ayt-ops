@@ -95,6 +95,7 @@ func New(db *pgxpool.Pool) http.Handler {
 			r.Post("/payments", h.CreatePayment)
 			r.Get("/payments/export-csv", h.ExportPaymentsCSV)   // static before {pay}
 			r.Post("/payments/upload-csv", h.UploadPaymentsCSV)  // static before {pay}
+			r.Put("/payments/{pay}", h.UpdatePayment)
 			r.Delete("/payments/{pay}", h.DeletePayment)
 
 			// Notes

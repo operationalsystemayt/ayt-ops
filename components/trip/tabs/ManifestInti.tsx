@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { pesertaApi, ocrApi, manifestApi } from "@/lib/trip/api";
 import { Button, Badge } from "@/components/ui";
+import { useAutoSave } from "@/lib/hooks/useAutoSave";
 import { getPesertaStatus, calcAge, isBirthdayDuringTrip } from "@/types/trip";
 import type { ManifestPeserta, PesertaTitle, RoomType, MealType } from "@/types/trip";
 import { clsx } from "clsx";
@@ -40,6 +41,7 @@ function blankForm() {
     klien: "",
     kepala_keluarga: "",
     note: "",
+    no_telp: "",
   };
 }
 
@@ -256,17 +258,28 @@ export function ManifestInti({ tripId, tripName, tglBerangkat, tglPulang }: Prop
   const setF = (k: keyof ReturnType<typeof blankForm>) => (v: string) =>
     setForm((f) => ({ ...f, [k]: v }));
 
+  const buildPayloadFrom = (f: ReturnType<typeof blankForm>): Partial<ManifestPeserta> => ({
+    ...f,
+    title:      (f.title || undefined) as ManifestPeserta["title"],
+    room_type:  (f.room_type || undefined) as ManifestPeserta["room_type"],
+    meals:      (f.meals || undefined) as ManifestPeserta["meals"],
+    issued_date:  f.issued_date || undefined,
+    tgl_lahir:    f.tgl_lahir   || undefined,
+    expiry_date:  f.expiry_date  || undefined,
+    kepala_keluarga: f.kepala_keluarga || undefined,
+    note:            f.note            || undefined,
+    no_telp:         f.no_telp          || undefined,
+  });
+
   const buildPayload = (): Partial<ManifestPeserta> => ({
-    ...form,
-    no_urut:    editId ? undefined : list.length + 1,
-    title:      (form.title || undefined) as ManifestPeserta["title"],
-    room_type:  (form.room_type || undefined) as ManifestPeserta["room_type"],
-    meals:      (form.meals || undefined) as ManifestPeserta["meals"],
-    issued_date:  form.issued_date || undefined,
-    tgl_lahir:    form.tgl_lahir   || undefined,
-    expiry_date:  form.expiry_date  || undefined,
-    kepala_keluarga: form.kepala_keluarga || undefined,
-    note:            form.note            || undefined,
+    ...buildPayloadFrom(form),
+    no_urut: editId ? undefined : list.length + 1,
+  });
+
+  // Auto-save edits to an existing peserta (debounced); new-record forms keep the explicit Simpan button.
+  const autoSave = useAutoSave(form, async (f) => {
+    if (!editId) return;
+    await pesertaApi.update(tripId, editId, buildPayloadFrom(f));
   });
 
   const handleSave = async () => {
@@ -323,6 +336,7 @@ export function ManifestInti({ tripId, tripName, tglBerangkat, tglPulang }: Prop
         place_of_issued:result.place_of_issued|| f.place_of_issued,
         issued_date:    result.issued_date    || f.issued_date,
         expiry_date:    result.expiry_date    || f.expiry_date,
+        note:           f.note || "Diisi secara otomatis oleh operator",
       }));
       setScanMsg({ ok: true, text: "Data berhasil terbaca — periksa sebelum menyimpan." });
     } catch (e: any) {
@@ -348,6 +362,7 @@ export function ManifestInti({ tripId, tripName, tglBerangkat, tglPulang }: Prop
       klien:           p.klien ?? "",
       kepala_keluarga: p.kepala_keluarga ?? "",
       note:            p.note ?? "",
+      no_telp:         p.no_telp ?? "",
     });
     setEditId(p.id);
     setAdding(true);
@@ -624,10 +639,21 @@ export function ManifestInti({ tripId, tripName, tglBerangkat, tglPulang }: Prop
               <label className={lbl}>Note</label>
               <input value={form.note} onChange={(e) => setF("note")(e.target.value)} className={inp} />
             </div>
+            <div>
+              <label className={lbl}>No. Telepon</label>
+              <input value={form.no_telp} onChange={(e) => setF("no_telp")(e.target.value)} className={inp} />
+            </div>
 
           </div>
 
-          <div className="flex justify-end gap-2 mt-4">
+          <div className="flex justify-end items-center gap-2 mt-4">
+            {editId && autoSave.status !== "idle" && (
+              <span className="text-[10px] text-neutral-500">
+                {autoSave.status === "saving" && "Menyimpan…"}
+                {autoSave.status === "saved" && "Tersimpan ✓"}
+                {autoSave.status === "error" && "Gagal menyimpan"}
+              </span>
+            )}
             <Button size="sm" variant="ghost" onClick={resetForm}>Batal</Button>
             <Button size="sm" variant="primary" onClick={handleSave}
               loading={uploads.paspor.uploading || uploads.ktp.uploading}>
@@ -644,14 +670,14 @@ export function ManifestInti({ tripId, tripName, tglBerangkat, tglPulang }: Prop
             <tr className="border-b border-neutral-800">
               {["No","Title","Nama","Paspor","Tgl Lahir","Tempat Lahir",
                 "Tgl Pengeluaran","Kantor","Expiry","Usia",
-                "Room","Klien","Meals","Kepala Keluarga","Note","Dok","Status",""].map((h) => (
+                "Room","Klien","Meals","Kepala Keluarga","Note","No. Telepon","Dok","Status",""].map((h) => (
                 <th key={h} className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wider text-neutral-600 whitespace-nowrap">{h}</th>
               ))}
             </tr>
           </thead>
           <tbody className="divide-y divide-neutral-800/50">
             {list.length === 0 && (
-              <tr><td colSpan={18} className="px-4 py-8 text-center text-xs text-neutral-600">Belum ada peserta</td></tr>
+              <tr><td colSpan={19} className="px-4 py-8 text-center text-xs text-neutral-600">Belum ada peserta</td></tr>
             )}
             {list.map((p, i) => {
               const st = getPesertaStatus(p);
@@ -678,6 +704,7 @@ export function ManifestInti({ tripId, tripName, tglBerangkat, tglPulang }: Prop
                   <td className="px-3 py-2 text-xs text-neutral-400">{p.meals ?? "—"}</td>
                   <td className="px-3 py-2 text-xs text-neutral-400 whitespace-nowrap">{p.kepala_keluarga ? kkLabel(p, kkCounts) : "—"}</td>
                   <td className="px-3 py-2 text-xs text-neutral-400 whitespace-nowrap max-w-[160px] truncate" title={p.note ?? ""}>{p.note ?? "—"}</td>
+                  <td className="px-3 py-2 text-xs text-neutral-400 whitespace-nowrap">{p.no_telp ?? "—"}</td>
                   {/* Document view links */}
                   <td className="px-3 py-2 text-xs">
                     <div className="flex gap-1.5">

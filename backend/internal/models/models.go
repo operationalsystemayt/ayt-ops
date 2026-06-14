@@ -1,23 +1,27 @@
 package models
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
 type Trip struct {
-	ID                  string     `json:"id"`
-	NamaTrip            string     `json:"nama_trip"`
-	RabMasterID         *string    `json:"rab_master_id"`
-	TglBerangkat        string     `json:"tgl_berangkat"`
-	TglPulang           string     `json:"tgl_pulang"`
-	TotalPax            int        `json:"total_pax"`
-	JumlahMalam         *int       `json:"jumlah_malam"`
-	TripCategory        string     `json:"trip_category"`
-	Negara              *string    `json:"negara"`
-	TripType            string     `json:"trip_type"`
-	Status              string     `json:"status"`
-	DriveFolderID       *string    `json:"drive_folder_id"`
-	ManifestCsvDriveID  *string    `json:"manifest_csv_drive_id"`
-	CreatedAt           time.Time  `json:"created_at"`
-	UpdatedAt           time.Time  `json:"updated_at"`
+	ID                   string          `json:"id"`
+	NamaTrip             string          `json:"nama_trip"`
+	RabMasterID          *string         `json:"rab_master_id"`
+	TglBerangkat         string          `json:"tgl_berangkat"`
+	TglPulang            string          `json:"tgl_pulang"`
+	TotalPax             int             `json:"total_pax"`
+	JumlahMalam          *int            `json:"jumlah_malam"`
+	TripCategory         string          `json:"trip_category"`
+	Negara               *string         `json:"negara"`
+	TripType             string          `json:"trip_type"`
+	Status               string          `json:"status"`
+	DriveFolderID        *string         `json:"drive_folder_id"`
+	ManifestCsvDriveID   *string         `json:"manifest_csv_drive_id"`
+	TransportasiKursList json.RawMessage `json:"transportasi_kurs_list,omitempty"`
+	CreatedAt            time.Time       `json:"created_at"`
+	UpdatedAt            time.Time       `json:"updated_at"`
 }
 
 type ManifestPeserta struct {
@@ -38,6 +42,7 @@ type ManifestPeserta struct {
 	Meals              *string    `json:"meals"`
 	KepalaKeluarga     *string    `json:"kepala_keluarga"`
 	Note               *string    `json:"note"`
+	NoTelp             *string    `json:"no_telp"`
 	PasporDriveFileID  *string    `json:"paspor_drive_file_id"`
 	KtpDriveFileID     *string    `json:"ktp_drive_file_id"`
 	VisaDriveFileID    *string    `json:"visa_drive_file_id"`
@@ -67,6 +72,7 @@ type TripPayment struct {
 	Catatan           *string   `json:"catatan"`
 	CreatedBy         *string   `json:"created_by"`
 	CreatedAt         time.Time `json:"created_at"`
+	UpdatedAt         time.Time `json:"updated_at"`
 }
 
 type PaymentSchedule struct {
@@ -105,6 +111,13 @@ type ManifestKeberangkatan struct {
 	Klien              *string   `json:"klien"`
 	TiketDriveFileID   *string   `json:"tiket_drive_file_id"`
 	LimitPembayaran    *string   `json:"limit_pembayaran"`
+	Terminal                  *string  `json:"terminal"`
+	TransitBerangkat          *string  `json:"transit_berangkat"`
+	TransitPulang             *string  `json:"transit_pulang"`
+	BagasiCheckinBerangkatKg  *float64 `json:"bagasi_checkin_berangkat_kg"`
+	BagasiCheckinPulangKg     *float64 `json:"bagasi_checkin_pulang_kg"`
+	HargaTiketBerangkat       *float64 `json:"harga_tiket_berangkat"`
+	HargaTiketPulang          *float64 `json:"harga_tiket_pulang"`
 	// Joined from manifest_peserta
 	Title         *string `json:"title"`
 	NamaLengkap   *string `json:"nama_lengkap"`
@@ -139,6 +152,11 @@ type TicketOCRResult struct {
 	JamPulang       string                  `json:"jam_pulang"`
 	BagasiKabinKg   float64                 `json:"bagasi_kabin_kg"`
 	BagasiCheckinKg float64                 `json:"bagasi_checkin_kg"`
+	Terminal                 string `json:"terminal"`
+	TransitBerangkat         string `json:"transit_berangkat"`
+	TransitPulang            string `json:"transit_pulang"`
+	BagasiCheckinBerangkatKg float64 `json:"bagasi_checkin_berangkat_kg"`
+	BagasiCheckinPulangKg    float64 `json:"bagasi_checkin_pulang_kg"`
 	BookingGroups   []TicketOCRBookingGroup `json:"booking_groups"`
 	Peserta         []TicketOCRPeserta      `json:"peserta"` // legacy fallback
 }
@@ -165,6 +183,9 @@ type ManifestHotel struct {
 	NotaDriveFileId    *string   `json:"nota_drive_file_id"`
 	WaktuPembayaran    *string   `json:"waktu_pembayaran"`
 	PaymentScheduleId  *string   `json:"payment_schedule_id"`
+	VoucherAtasNama    *string   `json:"voucher_atas_nama"`
+	MetodePembayaran   *string   `json:"metode_pembayaran"`
+	HargaRealisasi     *float64  `json:"harga_realisasi"`
 	CreatedAt          time.Time `json:"created_at"`
 	UpdatedAt          time.Time `json:"updated_at"`
 }
@@ -194,6 +215,8 @@ type ManifestTransportasi struct {
 	HargaIdr          *float64  `json:"harga_idr"`
 	TotalIdr          *float64  `json:"total_idr"`
 	Kurs              *float64  `json:"kurs"`
+	KursId            *string   `json:"kurs_id"`
+	KursLabel         *string   `json:"kurs_label"`
 	HargaSatuan       *string   `json:"harga_satuan"`
 	NotaDriveFileId   *string   `json:"nota_drive_file_id"`
 	WaktuPembayaran   *string   `json:"waktu_pembayaran"` // from payment_schedules.deadline

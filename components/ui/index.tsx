@@ -282,6 +282,55 @@ export function Modal({ children, onClose, title }: { children: React.ReactNode;
   );
 }
 
+// ─── ConfirmDialog ────────────────────────────────────────────────────────────
+// Two-step confirmation: first shows `message`, then a stronger permanent-action
+// warning. `onConfirm` only fires after the second step is confirmed.
+export function ConfirmDialog({
+  open, title, message, confirmLabel = "Hapus", onConfirm, onCancel,
+}: {
+  open: boolean;
+  title?: string;
+  message: string;
+  confirmLabel?: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  const [step, setStep] = useState<1 | 2>(1);
+
+  useEffect(() => {
+    if (open) setStep(1);
+  }, [open]);
+
+  if (!open) return null;
+
+  const handleCancel = () => { setStep(1); onCancel(); };
+  const handleConfirm = () => {
+    if (step === 1) { setStep(2); return; }
+    setStep(1);
+    onConfirm();
+  };
+
+  return (
+    <div
+      className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4"
+      onClick={(e) => { if (e.target === e.currentTarget) handleCancel(); }}
+    >
+      <div className="bg-neutral-900 border border-neutral-700 rounded-2xl w-full max-w-sm p-6">
+        {title && <h2 className="text-base font-semibold text-neutral-100 mb-2">{title}</h2>}
+        <p className="text-sm text-neutral-400 mb-5">
+          {step === 1 ? message : "Tindakan ini tidak bisa dibatalkan. Hapus permanen?"}
+        </p>
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" size="sm" onClick={handleCancel}>Batal</Button>
+          <Button variant="danger" size="sm" onClick={handleConfirm}>
+            {step === 1 ? "Lanjutkan" : confirmLabel}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── SectionHeader ────────────────────────────────────────────────────────────
 export function SectionHeader({ children, accent }: { children: React.ReactNode; accent?: "teal" | "amber" | "neutral" }) {
   const colors = {
